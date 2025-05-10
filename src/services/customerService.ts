@@ -1,4 +1,3 @@
-
 import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, getDoc, query, where, orderBy } from "firebase/firestore";
 import { db } from "@/firebase/firebase";
 import { Customer } from "@/types";
@@ -82,15 +81,36 @@ export const updateCustomerLoyaltyPoints = async (id: string, points: number): P
 
 export const addOrderToCustomer = async (customerId: string, orderId: string): Promise<void> => {
   const customerRef = doc(db, COLLECTION_NAME, customerId);
+  // Always fetch the latest data
   const customerDoc = await getDoc(customerRef);
-  
+
   if (customerDoc.exists()) {
     const customer = customerDoc.data() as Omit<Customer, 'id'>;
-    const orders = customer.orders || [];
-    
-    await updateDoc(customerRef, { 
-      orders: [...orders, orderId],
-      updatedAt: new Date().toISOString()
-    });
+    const orders = Array.isArray(customer.orders) ? customer.orders : [];
+    // Prevent duplicate order IDs
+    if (!orders.includes(orderId)) {
+      await updateDoc(customerRef, { 
+        orders: [...orders, orderId],
+        updatedAt: new Date().toISOString()
+      });
+    }
+  }
+};
+
+export const updateCustomerLoyaltyAndOrders = async (id: string, points: number, orderId: string): Promise<void> => {
+  const customerRef = doc(db, COLLECTION_NAME, id);
+  const customerDoc = await getDoc(customerRef);
+
+  if (customerDoc.exists()) {
+    const customer = customerDoc.data() as Omit<Customer, 'id'>;
+    const currentPoints = customer.loyaltyPoints || 0;
+    const orders = Array.isArray(customer.orders) ? customer.orders : [];
+    if (!orders.includes(orderId)) {
+      await updateDoc(customerRef, { 
+        loyaltyPoints: currentPoints + points,
+        orders: [...orders, orderId],
+        updatedAt: new Date().toISOString()
+      });
+    }
   }
 };

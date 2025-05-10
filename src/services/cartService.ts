@@ -1,4 +1,3 @@
-
 import { createOrder } from './orderService';
 import { updateCustomerLoyaltyPoints, addOrderToCustomer } from './customerService';
 import { getCustomerByEmail } from './customerService';
@@ -10,9 +9,9 @@ import { collection, addDoc, query, where, getDocs, doc, updateDoc, deleteDoc, g
 // Cart collection in Firestore
 const CART_COLLECTION = 'carts';
 
-// Calculate loyalty points based on order total (1 point per KES 100)
+// Calculate loyalty points based on order total (1 point per KES 115)
 export const calculateLoyaltyPoints = (orderTotal: number): number => {
-  return Math.floor(orderTotal / 100);
+  return Math.floor(orderTotal / 115);
 };
 
 // Get cart items for current user
@@ -199,23 +198,26 @@ export const placeOrder = async (
   try {
     // Add loyalty points to the order
     const loyaltyPoints = calculateLoyaltyPoints(orderData.total);
-    
+
     // Create order in database
     const orderId = await createOrder({
       ...orderData,
       loyaltyPoints
     });
-    
+
     // Find customer by email and update loyalty points
     const customer = await getCustomerByEmail(userEmail);
     if (customer) {
+      console.log("Updating loyalty points for customer:", customer.id, "Points:", loyaltyPoints);
       await updateCustomerLoyaltyPoints(customer.id, loyaltyPoints);
       await addOrderToCustomer(customer.id, orderId);
+    } else {
+      console.warn("Customer not found for email:", userEmail);
     }
-    
+
     // Clear the user's cart after placing the order
     await clearCart();
-    
+
     return orderId;
   } catch (error) {
     console.error("Error placing order:", error);

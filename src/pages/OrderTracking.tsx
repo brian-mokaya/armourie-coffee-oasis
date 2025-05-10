@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Layout from '@/components/Layout';
@@ -107,9 +106,9 @@ const OrderTracking = () => {
         <div className="max-w-3xl mx-auto">
           <Card className="mb-8">
             <CardHeader>
-              <CardTitle>Enter Your Order Number</CardTitle>
+              <CardTitle>Enter Your Order ID</CardTitle>
               <CardDescription>
-                Enter the order number you received in your confirmation email or SMS
+                Enter the order ID you received in your confirmation email or SMS
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -117,7 +116,7 @@ const OrderTracking = () => {
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="e.g. 2305"
+                    placeholder="e.g. 8f3a2b1c..." // Suggest a real order ID format
                     value={orderNumber}
                     onChange={(e) => setOrderNumber(e.target.value)}
                     className="pl-9"

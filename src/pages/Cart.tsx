@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Layout from '@/components/Layout';
@@ -19,7 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { Trash2, Plus, Minus, MapPin, ShoppingBag, Loader2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { validateCoupon, incrementCouponUse } from '@/services/couponService';
-import { createOrder } from '@/services/orderService';
+import { placeOrder } from '@/services/cartService'; // <-- use placeOrder
 import { auth } from "@/firebase/firebase";
 import { getCartItems, removeFromCart, updateCartItemQuantity, clearCart } from '@/services/cartService';
 
@@ -214,12 +213,10 @@ const Cart = () => {
     try {
       setIsSubmitting(true);
       
-      // Get current user info
       const user = auth.currentUser;
       const userEmail = user ? user.email : 'guest@example.com';
       const userName = user ? user.displayName || 'Guest User' : 'Guest User';
       
-      // Create order items
       const orderItems = cartItems.map(item => ({
         id: item.id,
         name: item.name,
@@ -228,10 +225,6 @@ const Cart = () => {
         total: item.price * item.quantity
       }));
       
-      // Calculate loyalty points (1 point per 115 KES spent)
-      const loyaltyPoints = Math.floor(total / 115);
-      
-      // Create order data
       const orderData = {
         customer: userName,
         email: userEmail,
@@ -240,9 +233,8 @@ const Cart = () => {
         total,
         status: 'Pending' as const,
         paymentStatus: 'Pending' as const,
-        paymentMethod: 'Cash on Delivery', // Add payment method selection in future
+        paymentMethod: 'Cash on Delivery',
         location: `${address.street}, ${address.city} ${address.zipCode}`,
-        loyaltyPoints,
         trackingSteps: [
           {
             title: "Order Placed",
@@ -277,23 +269,18 @@ const Cart = () => {
         ]
       };
       
-      // Create order in Firestore
-      const orderId = await createOrder(orderData);
+      // Use placeOrder instead of createOrder
+      const orderId = await placeOrder(orderData, userEmail);
       
-      // If promo was applied, increment its usage
       if (promoApplied && promoCode) {
         await incrementCouponUse(promoCode);
       }
-      
-      // Clear cart
-      // In a real app with state management, we'd clear the cart in a global state
       
       toast({
         title: "Order Placed Successfully!",
         description: "Your order has been received and is being processed."
       });
       
-      // Redirect to order tracking page
       window.location.href = `/track-order?id=${orderId}`;
       
     } catch (error) {

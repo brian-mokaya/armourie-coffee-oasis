@@ -1,35 +1,32 @@
-
 import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, getDoc, query, where, orderBy } from "firebase/firestore";
 import { db } from "@/firebase/firebase";
 import { Order } from "@/types";
 
 const COLLECTION_NAME = "orders";
 
+// Get all orders, most recent first
 export const getOrders = async (): Promise<Order[]> => {
   const ordersCollection = collection(db, COLLECTION_NAME);
-  // Order by date, most recent first
   const ordersQuery = query(ordersCollection, orderBy("date", "desc"));
   const ordersSnapshot = await getDocs(ordersQuery);
   const orders: Order[] = [];
-  
   ordersSnapshot.forEach((doc) => {
     orders.push({ id: doc.id, ...doc.data() } as Order);
   });
-  
   return orders;
 };
 
+// Get order by ID
 export const getOrderById = async (id: string): Promise<Order | null> => {
   const orderRef = doc(db, COLLECTION_NAME, id);
   const orderDoc = await getDoc(orderRef);
-  
   if (orderDoc.exists()) {
     return { id: orderDoc.id, ...orderDoc.data() } as Order;
   }
-  
   return null;
 };
 
+// Get orders by customer email
 export const getOrdersByCustomer = async (customerEmail: string): Promise<Order[]> => {
   const ordersCollection = collection(db, COLLECTION_NAME);
   const ordersQuery = query(
@@ -39,14 +36,13 @@ export const getOrdersByCustomer = async (customerEmail: string): Promise<Order[
   );
   const ordersSnapshot = await getDocs(ordersQuery);
   const orders: Order[] = [];
-  
   ordersSnapshot.forEach((doc) => {
     orders.push({ id: doc.id, ...doc.data() } as Order);
   });
-  
   return orders;
 };
 
+// Get orders by status
 export const getOrdersByStatus = async (status: string): Promise<Order[]> => {
   const ordersCollection = collection(db, COLLECTION_NAME);
   const ordersQuery = query(
@@ -56,18 +52,16 @@ export const getOrdersByStatus = async (status: string): Promise<Order[]> => {
   );
   const ordersSnapshot = await getDocs(ordersQuery);
   const orders: Order[] = [];
-  
   ordersSnapshot.forEach((doc) => {
     orders.push({ id: doc.id, ...doc.data() } as Order);
   });
-  
   return orders;
 };
 
+// Create a new order
 export const createOrder = async (order: Omit<Order, 'id'>): Promise<string> => {
   const docRef = await addDoc(collection(db, COLLECTION_NAME), {
     ...order,
-    // Initialize tracking steps if not provided
     trackingSteps: order.trackingSteps || [
       {
         title: "Order Placed",
@@ -101,22 +95,18 @@ export const createOrder = async (order: Omit<Order, 'id'>): Promise<string> => 
       }
     ]
   });
-  
   return docRef.id;
 };
 
+// Update order status and tracking steps
 export const updateOrderStatus = async (id: string, status: Order['status']): Promise<void> => {
   const orderRef = doc(db, COLLECTION_NAME, id);
   const orderDoc = await getDoc(orderRef);
-  
   if (!orderDoc.exists()) {
     throw new Error(`Order with ID ${id} not found`);
   }
-  
   const orderData = orderDoc.data() as Omit<Order, 'id'>;
   const trackingSteps = orderData.trackingSteps || [];
-  
-  // Update tracking steps based on status
   const updatedTrackingSteps = trackingSteps.map(step => {
     const statusSteps: Record<string, string[]> = {
       "Pending": ["Order Placed"],
@@ -124,11 +114,8 @@ export const updateOrderStatus = async (id: string, status: Order['status']): Pr
       "Out for Delivery": ["Order Placed", "Payment Confirmed", "Preparing", "Out for Delivery"],
       "Delivered": ["Order Placed", "Payment Confirmed", "Preparing", "Out for Delivery", "Delivered"],
     };
-    
     const relevantSteps = statusSteps[status] || [];
     const isCompleted = relevantSteps.includes(step.title);
-    
-    // Add timestamp for newly completed steps
     if (isCompleted && !step.completed) {
       return {
         ...step,
@@ -136,13 +123,11 @@ export const updateOrderStatus = async (id: string, status: Order['status']): Pr
         time: new Date().toISOString()
       };
     }
-    
     return {
       ...step,
       completed: isCompleted
     };
   });
-  
   await updateDoc(orderRef, {
     status,
     trackingSteps: updatedTrackingSteps,
@@ -150,6 +135,7 @@ export const updateOrderStatus = async (id: string, status: Order['status']): Pr
   });
 };
 
+// Update payment status
 export const updatePaymentStatus = async (id: string, paymentStatus: 'Paid' | 'Pending'): Promise<void> => {
   const orderRef = doc(db, COLLECTION_NAME, id);
   await updateDoc(orderRef, { 
@@ -158,6 +144,7 @@ export const updatePaymentStatus = async (id: string, paymentStatus: 'Paid' | 'P
   });
 };
 
+// Delete an order
 export const deleteOrder = async (id: string): Promise<void> => {
   const orderRef = doc(db, COLLECTION_NAME, id);
   await deleteDoc(orderRef);

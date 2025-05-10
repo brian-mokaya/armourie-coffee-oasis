@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -76,9 +75,8 @@ const Navbar = ({ cartCount = 0 }: NavbarProps) => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const navbarClasses = `fixed w-full z-30 transition-all duration-300 ${
-    isScrolled ? 'bg-white shadow-md py-2' : 'bg-coffee-dark/90 py-4'
-  }`;
+  // Always use white background and shadow
+  const navbarClasses = `fixed w-full z-30 transition-all duration-300 bg-white shadow-md py-2`;
 
   const navItems = [
     { label: 'Home', path: '/' },
@@ -100,8 +98,8 @@ const Navbar = ({ cartCount = 0 }: NavbarProps) => {
   const allNavItems = [...navItems, ...authNavItems];
 
   // Determine text color based on scroll state
-  const textColorClass = isScrolled ? 'text-coffee-dark' : 'text-white';
-  const hoverColorClass = isScrolled ? 'hover:text-coffee-medium' : 'hover:text-coffee-light';
+  const textColorClass = 'text-coffee-dark';
+  const hoverColorClass = 'hover:text-coffee-medium';
 
   // Cart button styling
   const cartButtonClass = isScrolled 

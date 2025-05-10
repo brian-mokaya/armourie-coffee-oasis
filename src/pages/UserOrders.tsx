@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
@@ -37,7 +36,6 @@ const UserOrders = () => {
         navigate('/login');
         return;
       }
-
       try {
         setIsLoading(true);
         const userOrders = await getOrdersByCustomer(currentUser.email);
@@ -48,7 +46,6 @@ const UserOrders = () => {
         setIsLoading(false);
       }
     };
-
     fetchOrders();
   }, [currentUser, isAuthenticated, navigate]);
 
@@ -151,6 +148,10 @@ const UserOrders = () => {
                       <div>
                         <h4 className="text-sm font-medium text-gray-500 mb-1">Delivery Location</h4>
                         <p>{order.location}</p>
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-500 mb-1">Loyalty Points Earned</h4>
+                        <p>{order.loyaltyPoints || 0}</p>
                       </div>
                     </div>
                   </div>
