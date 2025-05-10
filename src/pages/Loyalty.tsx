@@ -247,7 +247,7 @@ const Loyalty = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="text-2xl text-coffee-dark">Your Loyalty Points</CardTitle>
-                  <CardDescription>Earn 1 point for every KES 10 spent</CardDescription>
+                  <CardDescription>Earn 1 point for every KES 115 spent</CardDescription>
                 </div>
                 <div className="flex items-center justify-center h-20 w-20 bg-coffee-dark rounded-full">
                   <span className="text-2xl font-bold text-white">{loyaltyPoints}</span>
