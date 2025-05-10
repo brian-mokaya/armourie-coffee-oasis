@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Layout from '@/components/Layout';
@@ -20,7 +19,8 @@ import { Trash2, Plus, Minus, MapPin, ShoppingBag, Loader2 } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast';
 import { validateCoupon, incrementCouponUse } from '@/services/couponService';
 import { createOrder } from '@/services/orderService';
-import { auth } from "@/firebase/firebase";
+import { auth, db } from "@/firebase/firebase";
+import { collection, getDocs } from "firebase/firestore";
 
 // Cart item interface
 interface CartItem {
@@ -34,30 +34,7 @@ interface CartItem {
 
 const Cart = () => {
   const { toast } = useToast();
-  const [cartItems, setCartItems] = useState<CartItem[]>([
-    {
-      id: '1',
-      name: 'Classic Cappuccino',
-      price: 350,
-      image: 'https://images.unsplash.com/photo-1572442388796-11668a67e53d?ixlib=rb-1.2.1&auto=format&fit=crop&w=1000&q=80',
-      quantity: 2
-    },
-    {
-      id: '2',
-      name: 'Iced Caramel Latte',
-      price: 400,
-      originalPrice: 450,
-      image: 'https://images.unsplash.com/photo-1461023058943-07fcbe16d735?ixlib=rb-1.2.1&auto=format&fit=crop&w=1000&q=80',
-      quantity: 1
-    },
-    {
-      id: '5',
-      name: 'Avocado Toast',
-      price: 420,
-      image: 'https://images.unsplash.com/photo-1541519227354-08fa5d50c44d?ixlib=rb-1.2.1&auto=format&fit=crop&w=1000&q=80',
-      quantity: 1
-    }
-  ]);
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [promoCode, setPromoCode] = useState('');
   const [promoApplied, setPromoApplied] = useState(false);
   const [promoError, setPromoError] = useState('');
@@ -73,6 +50,31 @@ const Cart = () => {
   const [isLocationLoading, setIsLocationLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Fetch cart items from Firestore on mount
+  useEffect(() => {
+    const fetchCartItems = async () => {
+      try {
+        const user = auth.currentUser;
+        const userId = user ? user.uid : "guest";
+        // Adjust the path if your Firestore structure is different
+        const cartRef = collection(db, "carts", userId, "items");
+        const snapshot = await getDocs(cartRef);
+        const items: CartItem[] = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as CartItem[];
+        setCartItems(items);
+      } catch (error) {
+        toast({
+          variant: "destructive",
+          title: "Error loading cart",
+          description: "Could not fetch cart items."
+        });
+      }
+    };
+    fetchCartItems();
+  }, [toast]);
+
   // Calculate totals
   const subtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const total = subtotal + deliveryFee - discountAmount;
@@ -80,7 +82,6 @@ const Cart = () => {
   // Function to update item quantity
   const updateQuantity = (id: string, newQuantity: number) => {
     if (newQuantity < 1) return;
-    
     setCartItems(prevItems => 
       prevItems.map(item => 
         item.id === id ? {...item, quantity: newQuantity} : item
@@ -100,15 +101,12 @@ const Cart = () => {
   // Function to apply promo code
   const applyPromoCode = async () => {
     setPromoError('');
-    
     if (!promoCode) {
       setPromoError('Please enter a promo code');
       return;
     }
-    
     try {
       const result = await validateCoupon(promoCode.toUpperCase(), subtotal);
-      
       if (result.valid) {
         setDiscountAmount(result.discount);
         setPromoApplied(true);
@@ -145,23 +143,16 @@ const Cart = () => {
       });
       return;
     }
-
     setIsLocationLoading(true);
-
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        // In a real app, we would use Google Maps API to get the address from coordinates
-        // For now, we'll just use placeholder text
         setAddress({
           ...address,
           street: "Location detected: Use street name for specific location"
         });
         setIsLocationLoading(false);
-        
-        // Simulate delivery fee calculation based on distance
         const randomFee = Math.floor(Math.random() * 200) + 100; // Random fee between 100-300
         setDeliveryFee(randomFee);
-        
         toast({
           title: "Location Detected",
           description: "Your location has been successfully detected."
@@ -188,16 +179,11 @@ const Cart = () => {
       });
       return;
     }
-    
     try {
       setIsSubmitting(true);
-      
-      // Get current user info
       const user = auth.currentUser;
       const userEmail = user ? user.email : 'guest@example.com';
       const userName = user ? user.displayName || 'Guest User' : 'Guest User';
-      
-      // Create order items
       const orderItems = cartItems.map(item => ({
         id: item.id,
         name: item.name,
@@ -205,11 +191,7 @@ const Cart = () => {
         quantity: item.quantity,
         total: item.price * item.quantity
       }));
-      
-      // Calculate loyalty points (1 point per 115 KES spent)
       const loyaltyPoints = Math.floor(total / 115);
-      
-      // Create order data
       const orderData = {
         customer: userName,
         email: userEmail,
@@ -218,7 +200,7 @@ const Cart = () => {
         total,
         status: 'Pending' as const,
         paymentStatus: 'Pending' as const,
-        paymentMethod: 'Cash on Delivery', // Add payment method selection in future
+        paymentMethod: 'Cash on Delivery',
         location: `${address.street}, ${address.city} ${address.zipCode}`,
         loyaltyPoints,
         trackingSteps: [
@@ -254,26 +236,15 @@ const Cart = () => {
           }
         ]
       };
-      
-      // Create order in Firestore
       const orderId = await createOrder(orderData);
-      
-      // If promo was applied, increment its usage
       if (promoApplied && promoCode) {
         await incrementCouponUse(promoCode);
       }
-      
-      // Clear cart
-      // In a real app with state management, we'd clear the cart in a global state
-      
       toast({
         title: "Order Placed Successfully!",
         description: "Your order has been received and is being processed."
       });
-      
-      // Redirect to order tracking page
       window.location.href = `/track-order?id=${orderId}`;
-      
     } catch (error) {
       console.error("Error placing order:", error);
       toast({
@@ -290,7 +261,6 @@ const Cart = () => {
     <Layout>
       <div className="container mx-auto px-4 py-12">
         <h1 className="text-3xl font-bold text-coffee-dark mb-8">Your Cart</h1>
-        
         {cartItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12">
             <ShoppingBag className="h-16 w-16 text-muted-foreground mb-4" />
@@ -315,7 +285,6 @@ const Cart = () => {
                         <div className="h-16 w-16 rounded overflow-hidden flex-shrink-0">
                           <img src={item.image} alt={item.name} className="h-full w-full object-cover" />
                         </div>
-                        
                         <div className="flex-grow">
                           <p className="font-medium">{item.name}</p>
                           <div className="flex items-center mt-1">
@@ -327,7 +296,6 @@ const Cart = () => {
                             )}
                           </div>
                         </div>
-                        
                         <div className="flex items-center space-x-2">
                           <Button 
                             variant="outline" 
@@ -338,9 +306,7 @@ const Cart = () => {
                           >
                             <Minus className="h-4 w-4" />
                           </Button>
-                          
                           <span className="w-6 text-center">{item.quantity}</span>
-                          
                           <Button 
                             variant="outline" 
                             size="icon" 
@@ -350,7 +316,6 @@ const Cart = () => {
                             <Plus className="h-4 w-4" />
                           </Button>
                         </div>
-                        
                         <Button 
                           variant="ghost" 
                           size="icon" 
@@ -364,7 +329,6 @@ const Cart = () => {
                   </div>
                 </CardContent>
               </Card>
-              
               {/* Delivery Information */}
               <Card className="mt-6">
                 <CardHeader>
@@ -389,7 +353,6 @@ const Cart = () => {
                         Use GPS Location
                       </Button>
                     </div>
-                    
                     {deliveryMethod === 'manual' ? (
                       <div className="grid gap-4">
                         <div className="grid gap-2">
@@ -401,7 +364,6 @@ const Cart = () => {
                             onChange={(e) => setAddress({...address, street: e.target.value})}
                           />
                         </div>
-                        
                         <div className="grid grid-cols-2 gap-4">
                           <div className="grid gap-2">
                             <Label htmlFor="city">City</Label>
@@ -421,7 +383,6 @@ const Cart = () => {
                             />
                           </div>
                         </div>
-                        
                         <div className="grid gap-2">
                           <Label htmlFor="instructions">Delivery Instructions (Optional)</Label>
                           <Input 
@@ -448,7 +409,6 @@ const Cart = () => {
                             'Detect My Location'
                           )}
                         </Button>
-                        
                         {address.street && (
                           <div className="p-3 bg-muted rounded-md flex items-start space-x-2">
                             <MapPin className="h-5 w-5 text-coffee-dark mt-0.5" />
@@ -461,7 +421,6 @@ const Cart = () => {
                             </div>
                           </div>
                         )}
-                        
                         <div className="grid gap-2">
                           <Label htmlFor="gpsInstructions">Delivery Instructions (Optional)</Label>
                           <Input 
@@ -477,7 +436,6 @@ const Cart = () => {
                 </CardContent>
               </Card>
             </div>
-            
             {/* Order Summary */}
             <div className="lg:col-span-1">
               <Card className="sticky top-20">
@@ -489,26 +447,21 @@ const Cart = () => {
                     <span>Subtotal:</span>
                     <span>KES {subtotal.toFixed(2)}</span>
                   </div>
-                  
                   <div className="flex justify-between">
                     <span>Delivery Fee:</span>
                     <span>KES {deliveryFee.toFixed(2)}</span>
                   </div>
-                  
                   {discountAmount > 0 && (
                     <div className="flex justify-between text-green-600">
                       <span>Discount:</span>
                       <span>- KES {discountAmount.toFixed(2)}</span>
                     </div>
                   )}
-                  
                   <Separator />
-                  
                   <div className="flex justify-between font-bold text-lg">
                     <span>Total:</span>
                     <span>KES {total.toFixed(2)}</span>
                   </div>
-                  
                   {/* Promo Code */}
                   <div className="pt-4">
                     <Label htmlFor="promoCode">Promo Code</Label>
@@ -532,18 +485,15 @@ const Cart = () => {
                         Apply
                       </Button>
                     </div>
-                    
                     {promoError && (
                       <p className="text-sm text-red-500 mt-1">{promoError}</p>
                     )}
-                    
                     {promoApplied && (
                       <Badge variant="outline" className="mt-2 bg-green-50 text-green-600 border-green-200">
                         Promo Code Applied
                       </Badge>
                     )}
                   </div>
-                  
                   {/* Loyalty points reminder */}
                   <div className="bg-coffee-light/20 p-3 rounded-md text-sm">
                     <p className="font-medium">Earn Loyalty Points with this purchase!</p>
