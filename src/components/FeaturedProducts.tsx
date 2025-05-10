@@ -6,12 +6,16 @@ import { useToast } from '@/components/ui/use-toast';
 import { getProducts } from '@/services/productService';
 import { Loader2 } from 'lucide-react';
 import { Product as ProductType } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
+import { getCartItems } from '@/services/cartService';
 
 const FeaturedProducts = () => {
   const { toast } = useToast();
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [products, setProducts] = useState<ProductType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [cartCount, setCartCount] = useState(0);
+  const { isAuthenticated } = useAuth();
   
   useEffect(() => {
     const fetchProducts = async () => {
@@ -29,6 +33,23 @@ const FeaturedProducts = () => {
     fetchProducts();
   }, []);
 
+  // Update cart count when items are added
+  useEffect(() => {
+    const updateCartCount = async () => {
+      if (isAuthenticated) {
+        try {
+          const items = await getCartItems();
+          const count = items.reduce((sum, item) => sum + item.quantity, 0);
+          setCartCount(count);
+        } catch (error) {
+          console.error("Error fetching cart count:", error);
+        }
+      }
+    };
+
+    updateCartCount();
+  }, [isAuthenticated]);
+
   const categories = [
     { id: 'all', name: 'All' },
     { id: 'coffee', name: 'Coffee' },
@@ -38,14 +59,19 @@ const FeaturedProducts = () => {
 
   const filteredProducts = activeCategory === 'all'
     ? products
-    : products.filter(product => product.category === activeCategory);
+    : products.filter(product => product.category.toLowerCase() === activeCategory.toLowerCase());
 
-  const handleAddToCart = (product: ProductType) => {
-    // In a real app, this would add the product to the cart state/context
-    toast({
-      title: "Added to Cart",
-      description: `${product.name} has been added to your cart.`
-    });
+  const handleAddToCart = async (product: ProductType) => {
+    // Refresh cart count after adding to cart
+    if (isAuthenticated) {
+      try {
+        const items = await getCartItems();
+        const count = items.reduce((sum, item) => sum + item.quantity, 0);
+        setCartCount(count);
+      } catch (error) {
+        console.error("Error updating cart count:", error);
+      }
+    }
   };
 
   return (
@@ -77,12 +103,12 @@ const FeaturedProducts = () => {
           <span className="ml-2 text-coffee-dark">Loading products...</span>
         </div>
       ) : filteredProducts.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6 max-w-[2400px] mx-auto">
           {filteredProducts.map(product => (
             <ProductCard
               key={product.id}
               product={product as Product}
-              onAddToCart={() => handleAddToCart(product)}
+              onAddToCart={handleAddToCart}
             />
           ))}
         </div>

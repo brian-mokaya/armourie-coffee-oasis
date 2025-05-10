@@ -77,7 +77,7 @@ const Navbar = ({ cartCount = 0 }: NavbarProps) => {
   }, []);
 
   const navbarClasses = `fixed w-full z-30 transition-all duration-300 ${
-    isScrolled ? 'bg-white shadow-md py-2' : 'bg-coffee-dark/80 py-4'
+    isScrolled ? 'bg-white shadow-md py-2' : 'bg-coffee-dark/90 py-4'
   }`;
 
   const navItems = [
@@ -103,9 +103,14 @@ const Navbar = ({ cartCount = 0 }: NavbarProps) => {
   const textColorClass = isScrolled ? 'text-coffee-dark' : 'text-white';
   const hoverColorClass = isScrolled ? 'hover:text-coffee-medium' : 'hover:text-coffee-light';
 
+  // Cart button styling
+  const cartButtonClass = isScrolled 
+    ? 'text-coffee-dark border-coffee-dark hover:bg-coffee-light/20' 
+    : 'text-white border-white hover:bg-white/20';
+
   return (
     <nav className={navbarClasses}>
-      <div className="container mx-auto px-4 flex justify-between items-center">
+      <div className="container mx-auto px-4 flex justify-between items-center max-w-7xl">
         <Link to="/" className="flex items-center space-x-2">
           <div className={`${isScrolled ? 'bg-coffee-dark' : 'bg-white'} rounded-full p-1`}>
             <ShoppingBag size={24} className={isScrolled ? 'text-white' : 'text-coffee-dark'} />
@@ -132,7 +137,7 @@ const Navbar = ({ cartCount = 0 }: NavbarProps) => {
               <Button 
                 variant="outline" 
                 size="sm"
-                className={`relative ${isScrolled ? 'text-coffee-dark border-coffee-dark hover:bg-coffee-light/20' : 'text-white border-white hover:bg-white/20'}`}
+                className={`relative ${cartButtonClass} border-2`}
               >
                 <ShoppingBag className="h-5 w-5" />
                 {dynamicCartCount > 0 && (
@@ -192,7 +197,7 @@ const Navbar = ({ cartCount = 0 }: NavbarProps) => {
             <Button 
               variant="outline" 
               size="sm"
-              className={`relative ${isScrolled ? 'text-coffee-dark border-coffee-dark' : 'text-white border-white'}`}
+              className={`relative ${cartButtonClass} border-2`}
             >
               <ShoppingBag className="h-5 w-5" />
               {dynamicCartCount > 0 && (

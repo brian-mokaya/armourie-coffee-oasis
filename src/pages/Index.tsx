@@ -29,6 +29,10 @@ const Index = () => {
     };
 
     fetchCartItems();
+    
+    // Set up an interval to refresh cart items every minute
+    const intervalId = setInterval(fetchCartItems, 60000);
+    return () => clearInterval(intervalId);
   }, [isAuthenticated]);
 
   return (

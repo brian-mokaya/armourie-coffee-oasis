@@ -3,6 +3,10 @@ import { Link } from 'react-router-dom';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { addToCart } from '@/services/cartService';
+import { useToast } from '@/components/ui/use-toast';
+import { useState } from 'react';
+import { Loader2 } from 'lucide-react';
 
 export interface Product {
   id: string;
@@ -24,11 +28,42 @@ interface ProductCardProps {
 
 const ProductCard = ({ product, onAddToCart }: ProductCardProps) => {
   const { id, name, description, price, originalPrice, image, isPopular, isNew, offerTag } = product;
+  const { toast } = useToast();
+  const [isAdding, setIsAdding] = useState(false);
   
-  const handleAddToCart = (e: React.MouseEvent) => {
+  const handleAddToCart = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    onAddToCart(product);
+    
+    try {
+      setIsAdding(true);
+      // Add item to cart with quantity 1
+      await addToCart({
+        id,
+        name,
+        price,
+        originalPrice,
+        image: image || '',  // Ensure image is never undefined
+        quantity: 1
+      });
+      
+      toast({
+        title: "Added to Cart",
+        description: `${name} has been added to your cart.`
+      });
+      
+      // Call the parent component's onAddToCart handler
+      onAddToCart(product);
+    } catch (error) {
+      console.error("Error adding to cart:", error);
+      toast({
+        title: "Error",
+        description: "Could not add item to cart. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsAdding(false);
+    }
   };
 
   const fallbackImage = "https://images.unsplash.com/photo-1518770660439-4636190af475";
@@ -76,9 +111,17 @@ const ProductCard = ({ product, onAddToCart }: ProductCardProps) => {
         <CardFooter className="p-4 pt-0">
           <Button 
             onClick={handleAddToCart}
+            disabled={isAdding}
             className="w-full bg-coffee-dark hover:bg-coffee-medium text-white"
           >
-            Add to Cart
+            {isAdding ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Adding...
+              </>
+            ) : (
+              'Add to Cart'
+            )}
           </Button>
         </CardFooter>
       </Link>

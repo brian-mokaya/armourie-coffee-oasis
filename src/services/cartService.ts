@@ -43,6 +43,22 @@ export const addToCart = async (item: any) => {
     const user = auth.currentUser;
     if (!user) throw new Error("User not authenticated");
 
+    // Ensure all required properties are present
+    if (!item.id || !item.name || item.price === undefined || item.quantity === undefined) {
+      console.error("Missing required item properties:", item);
+      throw new Error("Item missing required properties");
+    }
+
+    // Validate item properties to ensure no undefined values
+    const validatedItem = {
+      id: item.id,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity || 1,
+      image: item.image || '',
+      originalPrice: item.originalPrice || null
+    };
+
     const cartRef = collection(db, CART_COLLECTION);
     const q = query(cartRef, where("userId", "==", user.uid));
     const querySnapshot = await getDocs(q);
@@ -51,7 +67,7 @@ export const addToCart = async (item: any) => {
       // Create new cart
       await addDoc(cartRef, {
         userId: user.uid,
-        items: [item],
+        items: [validatedItem],
         updatedAt: new Date()
       });
     } else {
@@ -61,14 +77,14 @@ export const addToCart = async (item: any) => {
       const existingItems = cartData.items || [];
       
       // Check if item already exists
-      const existingItemIndex = existingItems.findIndex((i: any) => i.id === item.id);
+      const existingItemIndex = existingItems.findIndex((i: any) => i.id === validatedItem.id);
       
       if (existingItemIndex !== -1) {
         // Update quantity if item exists
-        existingItems[existingItemIndex].quantity += item.quantity;
+        existingItems[existingItemIndex].quantity += validatedItem.quantity;
       } else {
         // Add new item
-        existingItems.push(item);
+        existingItems.push(validatedItem);
       }
       
       await updateDoc(doc(db, CART_COLLECTION, cartDoc.id), {

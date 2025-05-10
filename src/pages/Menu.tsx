@@ -7,12 +7,16 @@ import { useToast } from '@/components/ui/use-toast';
 import { getProducts } from '@/services/productService';
 import { Loader2 } from 'lucide-react';
 import { Product } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
+import { getCartItems } from '@/services/cartService';
 
 const Menu = () => {
   const { toast } = useToast();
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [cartCount, setCartCount] = useState(0);
+  const { isAuthenticated } = useAuth();
 
   // Fetch products from Firestore
   useEffect(() => {
@@ -36,6 +40,23 @@ const Menu = () => {
     fetchProducts();
   }, [toast]);
 
+  // Update cart count when component mounts
+  useEffect(() => {
+    const updateCartCount = async () => {
+      if (isAuthenticated) {
+        try {
+          const items = await getCartItems();
+          const count = items.reduce((sum, item) => sum + item.quantity, 0);
+          setCartCount(count);
+        } catch (error) {
+          console.error("Error fetching cart count:", error);
+        }
+      }
+    };
+
+    updateCartCount();
+  }, [isAuthenticated]);
+
   const categories = [
     { id: 'all', name: 'All Items' },
     { id: 'coffee', name: 'Coffee' },
@@ -47,16 +68,21 @@ const Menu = () => {
     ? products
     : products.filter(product => product.category.toLowerCase() === activeCategory.toLowerCase());
 
-  const handleAddToCart = (product: Product) => {
-    // In a real app, this would add the product to the cart state/context
-    toast({
-      title: "Added to Cart",
-      description: `${product.name} has been added to your cart.`
-    });
+  const handleAddToCart = async (product: Product) => {
+    // Refresh cart count after adding to cart
+    if (isAuthenticated) {
+      try {
+        const items = await getCartItems();
+        const count = items.reduce((sum, item) => sum + item.quantity, 0);
+        setCartCount(count);
+      } catch (error) {
+        console.error("Error updating cart count:", error);
+      }
+    }
   };
 
   return (
-    <Layout>
+    <Layout cartCount={cartCount}>
       <section className="container mx-auto px-4 py-12">
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-coffee-dark mb-2">Our Menu</h1>
@@ -88,7 +114,7 @@ const Menu = () => {
             <span className="ml-2 text-coffee-dark">Loading products...</span>
           </div>
         ) : filteredProducts.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6 max-w-[2400px] mx-auto">
             {filteredProducts.map(product => (
               <ProductCard
                 key={product.id}
