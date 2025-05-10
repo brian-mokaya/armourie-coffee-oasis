@@ -1,7 +1,6 @@
 
 import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, getDoc, query, where } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { db, storage } from "@/firebase/firebase";
+import { db } from "@/firebase/firebase";
 import { Product } from "@/types";
 
 const COLLECTION_NAME = "products";
@@ -42,41 +41,30 @@ export const getProductsByCategory = async (category: string): Promise<Product[]
   return products;
 };
 
-export const addProduct = async (product: Omit<Product, 'id'>, imageFile?: File): Promise<string> => {
-  let imageUrl = product.image;
-  
-  // Upload image if provided
-  if (imageFile) {
-    const storageRef = ref(storage, `products/${Date.now()}_${imageFile.name}`);
-    await uploadBytes(storageRef, imageFile);
-    imageUrl = await getDownloadURL(storageRef);
-  }
-  
-  const docRef = await addDoc(collection(db, COLLECTION_NAME), {
+export const addProduct = async (product: Omit<Product, 'id'>, imageUrl?: string): Promise<string> => {
+  // Use the provided image URL directly instead of uploading a file
+  const productData = {
     ...product,
-    image: imageUrl,
-    // Add timestamp
+    image: imageUrl || product.image || 'https://images.unsplash.com/photo-1518770660439-4636190af475',
     createdAt: new Date().toISOString()
-  });
+  };
+  
+  const docRef = await addDoc(collection(db, COLLECTION_NAME), productData);
   
   return docRef.id;
 };
 
-export const updateProduct = async (id: string, product: Partial<Product>, imageFile?: File): Promise<void> => {
+export const updateProduct = async (id: string, product: Partial<Product>, imageUrl?: string): Promise<void> => {
   const productRef = doc(db, COLLECTION_NAME, id);
   let updateData = { ...product };
   
-  // Upload image if provided
-  if (imageFile) {
-    const storageRef = ref(storage, `products/${Date.now()}_${imageFile.name}`);
-    await uploadBytes(storageRef, imageFile);
-    const imageUrl = await getDownloadURL(storageRef);
+  // If a new image URL is provided, update it
+  if (imageUrl) {
     updateData.image = imageUrl;
   }
   
   await updateDoc(productRef, {
     ...updateData,
-    // Add timestamp
     updatedAt: new Date().toISOString()
   });
 };

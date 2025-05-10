@@ -31,14 +31,21 @@ const ProductCard = ({ product, onAddToCart }: ProductCardProps) => {
     onAddToCart(product);
   };
 
+  const fallbackImage = "https://images.unsplash.com/photo-1518770660439-4636190af475";
+
   return (
     <Card className="h-full overflow-hidden hover:shadow-md transition-shadow">
       <Link to={`/product/${id}`} className="block h-full">
         <div className="relative h-48 overflow-hidden">
           <img 
-            src={image} 
+            src={image || fallbackImage} 
             alt={name} 
-            className="w-full h-full object-cover transition-transform duration-300 hover:scale-105" 
+            className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              target.onerror = null;
+              target.src = fallbackImage;
+            }}
           />
           <div className="absolute top-2 left-2 flex flex-col gap-2">
             {isNew && (

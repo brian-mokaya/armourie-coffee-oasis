@@ -23,6 +23,8 @@ const Index = () => {
         } catch (error) {
           console.error("Error fetching cart items:", error);
         }
+      } else {
+        setCartCount(0);
       }
     };
 

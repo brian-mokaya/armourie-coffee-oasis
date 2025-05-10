@@ -48,10 +48,9 @@ const AdminProducts = () => {
     description: '',
     category: '',
     price: '',
-    stock: 'In Stock' as 'In Stock' | 'Low Stock' | 'Out of Stock',
+    stock: 'In Stock' as const,
     image: ''
   });
-  const [imageFile, setImageFile] = useState<File | null>(null);
   const { toast } = useToast();
   
   // Fetch products from Firestore
@@ -81,12 +80,6 @@ const AdminProducts = () => {
     product.category.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setImageFile(e.target.files[0]);
-    }
-  };
-
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -108,11 +101,11 @@ const AdminProducts = () => {
         price: parseFloat(newProduct.price),
         category: newProduct.category || 'Uncategorized',
         stock: newProduct.stock,
-        image: newProduct.image || '/placeholder.svg',
+        image: newProduct.image || 'https://images.unsplash.com/photo-1518770660439-4636190af475',
         isNew: true
       };
       
-      await addProduct(productData, imageFile || undefined);
+      await addProduct(productData);
       
       // Refresh product list
       const updatedProducts = await getProducts();
@@ -124,10 +117,9 @@ const AdminProducts = () => {
         description: '',
         category: '',
         price: '',
-        stock: 'In Stock',
+        stock: 'In Stock' as const,
         image: ''
       });
-      setImageFile(null);
       
       toast({
         title: "Product Added",
@@ -154,7 +146,7 @@ const AdminProducts = () => {
     try {
       setIsSubmitting(true);
       
-      await updateProduct(selectedProduct.id, selectedProduct, imageFile || undefined);
+      await updateProduct(selectedProduct.id, selectedProduct);
       
       // Refresh product list
       const updatedProducts = await getProducts();
@@ -162,7 +154,6 @@ const AdminProducts = () => {
       
       setShowEditDialog(false);
       setSelectedProduct(null);
-      setImageFile(null);
       
       toast({
         title: "Product Updated",
@@ -248,6 +239,28 @@ const AdminProducts = () => {
         return <Badge variant="outline">{stock}</Badge>;
     }
   };
+
+  // Fetch products on component mount
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        setIsLoading(true);
+        const productsData = await getProducts();
+        setProducts(productsData);
+      } catch (error) {
+        console.error('Error fetching products:', error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to load products. Please try again."
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, [toast]);
 
   return (
     <AdminLayout title="Products">
@@ -346,7 +359,7 @@ const AdminProducts = () => {
                       <Select 
                         value={newProduct.stock}
                         onValueChange={(value: 'In Stock' | 'Low Stock' | 'Out of Stock') => 
-                          setNewProduct({...newProduct, stock: value})
+                          setNewProduct({...newProduct, stock: value as 'In Stock'})
                         }
                       >
                         <SelectTrigger className="col-span-3">
@@ -361,14 +374,15 @@ const AdminProducts = () => {
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="image" className="text-right text-sm">
-                        Image
+                        Image URL
                       </Label>
                       <Input 
                         id="image" 
-                        type="file" 
+                        type="text"
+                        placeholder="https://example.com/image.jpg"
                         className="col-span-3"
-                        accept="image/*"
-                        onChange={handleImageChange}
+                        value={newProduct.image}
+                        onChange={(e) => setNewProduct({...newProduct, image: e.target.value})}
                       />
                     </div>
                   </div>
@@ -595,7 +609,7 @@ const AdminProducts = () => {
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="edit-image" className="text-right text-sm">
-                    Image
+                    Image URL
                   </Label>
                   <div className="col-span-3">
                     {selectedProduct.image && (
@@ -604,14 +618,23 @@ const AdminProducts = () => {
                           src={selectedProduct.image} 
                           alt={selectedProduct.name} 
                           className="h-full w-full object-cover"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.onerror = null;
+                            target.src = 'https://images.unsplash.com/photo-1518770660439-4636190af475';
+                          }}
                         />
                       </div>
                     )}
                     <Input 
                       id="edit-image" 
-                      type="file" 
-                      accept="image/*"
-                      onChange={handleImageChange}
+                      type="text"
+                      placeholder="https://example.com/image.jpg"
+                      value={selectedProduct.image || ''}
+                      onChange={(e) => setSelectedProduct({
+                        ...selectedProduct, 
+                        image: e.target.value
+                      })}
                     />
                   </div>
                 </div>
