@@ -144,8 +144,62 @@ export const updatePaymentStatus = async (id: string, paymentStatus: 'Paid' | 'P
   });
 };
 
-// Delete an order
+// Delete an order - used by admin
 export const deleteOrder = async (id: string): Promise<void> => {
   const orderRef = doc(db, COLLECTION_NAME, id);
   await deleteDoc(orderRef);
+};
+
+// Delete customer's order data from user record (if applicable)
+export const removeOrderFromCustomer = async (orderId: string, customerEmail: string): Promise<void> => {
+  try {
+    // Find the customer by email
+    const usersCollection = collection(db, "users");
+    const q = query(usersCollection, where("email", "==", customerEmail));
+    const userSnapshot = await getDocs(q);
+    
+    if (!userSnapshot.empty) {
+      const userDoc = userSnapshot.docs[0];
+      const userData = userDoc.data();
+      const userOrders = userData.orders || [];
+      
+      // Remove the order ID from the user's orders array
+      if (userOrders.includes(orderId)) {
+        await updateDoc(doc(db, "users", userDoc.id), {
+          orders: userOrders.filter((id: string) => id !== orderId),
+          updatedAt: new Date().toISOString()
+        });
+      }
+    }
+  } catch (error) {
+    console.error("Error removing order from customer:", error);
+    throw error;
+  }
+};
+
+// Remove an order from a user's record (if applicable)
+export const removeOrderFromUser = async (orderId: string, userEmail: string): Promise<void> => {
+  try {
+    // Find the user by email
+    const usersCollection = collection(db, "users");
+    const q = query(usersCollection, where("email", "==", userEmail));
+    const userSnapshot = await getDocs(q);
+    
+    if (!userSnapshot.empty) {
+      const userDoc = userSnapshot.docs[0];
+      const userData = userDoc.data();
+      const userOrders = userData.orders || [];
+      
+      // Remove the order ID from the user's orders array
+      if (userOrders.includes(orderId)) {
+        await updateDoc(doc(db, "users", userDoc.id), {
+          orders: userOrders.filter((id: string) => id !== orderId),
+          updatedAt: new Date().toISOString()
+        });
+      }
+    }
+  } catch (error) {
+    console.error("Error removing order from user:", error);
+    throw error;
+  }
 };

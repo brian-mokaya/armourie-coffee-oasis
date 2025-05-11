@@ -15,10 +15,10 @@ const Hero = () => {
             Experience premium coffee in a relaxing atmosphere at Café Armourié.
           </p>
           <div className="flex flex-wrap gap-4">
-            <Button asChild size="lg" className="bg-coffee-dark hover:bg-coffee-medium text-white">
+            <Button asChild size="lg" className="bg-coffee-dark text-white">
               <Link to="/menu">View Menu</Link>
             </Button>
-            <Button asChild size="lg" variant="outline" className="border-white text-white hover:bg-white/20 hover:text-white border-2 font-medium">
+            <Button asChild size="lg" variant="outline" className="border-white text-white border-2 font-medium">
               <Link to="/about">Learn More</Link>
             </Button>
           </div>

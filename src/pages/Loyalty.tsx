@@ -13,7 +13,7 @@ import { Progress } from '@/components/ui/progress';
 import { Award, Gift, Star } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { db, auth } from '@/firebase/firebase';
-import { collection, query, where, getDocs, updateDoc, doc, getDoc, addDoc, Timestamp } from "firebase/firestore";
+import { collection, query, where, getDocs, updateDoc, doc, addDoc, Timestamp } from "firebase/firestore";
 import { onAuthStateChanged } from 'firebase/auth';
 
 // Define interfaces for our data types
@@ -44,7 +44,7 @@ const Loyalty = () => {
   const [orderHistory, setOrderHistory] = useState<OrderHistoryItem[]>([]);
   const [rewards, setRewards] = useState<RewardItem[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
-  const [loyaltyId, setLoyaltyId] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   
   // Check if user is logged in
@@ -52,8 +52,10 @@ const Loyalty = () => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         setUserId(user.uid);
+        setUserEmail(user.email); // <-- set email
       } else {
         setUserId(null);
+        setUserEmail(null);
         // Redirect to login or show a message
         toast({
           title: "You need to login",
@@ -94,49 +96,45 @@ const Loyalty = () => {
   // Fetch user loyalty data
   useEffect(() => {
     const fetchLoyaltyData = async () => {
-      if (!userId) return;
-      
+      if (!userId && !userEmail) return;
+
       setLoading(true);
       try {
-        // Query loyalty collection for current user
-        const loyaltyRef = collection(db, 'loyalty');
-        const q = query(loyaltyRef, where("userId", "==", userId));
+        // Fetch user document from 'users' collection
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where("uid", "==", userId));
         const querySnapshot = await getDocs(q);
-        
-        if (querySnapshot.empty) {
-          // Create a new loyalty record for the user
-          const newLoyaltyData = {
-            userId,
-            points: 0,
-            tier: 'Bronze',
-            createdAt: Timestamp.now()
-          };
-          
-          const docRef = await addDoc(collection(db, 'loyalty'), newLoyaltyData);
-          setLoyaltyId(docRef.id);
-          setLoyaltyPoints(0);
+
+        let points = 0;
+        if (!querySnapshot.empty) {
+          const userDoc = querySnapshot.docs[0];
+          const userData = userDoc.data();
+          points = userData.loyaltyPoints || 0;
+          setLoyaltyPoints(points);
         } else {
-          // Get existing loyalty data
-          const loyaltyData = querySnapshot.docs[0].data() as UserLoyalty;
-          setLoyaltyId(querySnapshot.docs[0].id);
-          setLoyaltyPoints(loyaltyData.points);
+          setLoyaltyPoints(0);
         }
 
-        // Get order history
+        // Get order history (try userId, then fallback to email)
         const ordersRef = collection(db, 'orders');
-        const ordersQuery = query(ordersRef, where("userId", "==", userId));
-        const ordersSnapshot = await getDocs(ordersQuery);
-        
-        const ordersHistory = ordersSnapshot.docs.map(doc => {
-          const data = doc.data();
+        let ordersQuery = query(ordersRef, where("userId", "==", userId));
+        let ordersSnapshot = await getDocs(ordersQuery);
+
+        if (ordersSnapshot.empty && userEmail) {
+          ordersQuery = query(ordersRef, where("email", "==", userEmail));
+          ordersSnapshot = await getDocs(ordersQuery);
+        }
+
+        const ordersHistory = ordersSnapshot.docs.map(orderDoc => {
+          const data = orderDoc.data();
           return {
-            id: doc.id,
+            id: orderDoc.id,
             date: data.date,
-            points: data.points || Math.round(data.total / 10), // Default calculation if points not stored
+            points: data.loyaltyPoints || Math.floor((data.total || 0) / 115),
             total: data.total
           };
         }) as OrderHistoryItem[];
-        
+
         setOrderHistory(ordersHistory);
       } catch (error) {
         console.error("Error fetching loyalty data:", error);
@@ -151,10 +149,10 @@ const Loyalty = () => {
     };
 
     fetchLoyaltyData();
-  }, [userId, toast]);
+  }, [userId, userEmail, toast]);
 
   const handleRedeemReward = async (reward: RewardItem) => {
-    if (!userId || !loyaltyId) {
+    if (!userId) {
       toast({
         title: "Authentication required",
         description: "Please log in to redeem rewards",
@@ -166,29 +164,36 @@ const Loyalty = () => {
     if (loyaltyPoints >= reward.points) {
       try {
         // Update loyalty points in Firestore
-        const loyaltyRef = doc(db, 'loyalty', loyaltyId);
-        const newPoints = loyaltyPoints - reward.points;
-        
-        await updateDoc(loyaltyRef, {
-          points: newPoints
-        });
-        
-        // Add redemption record
-        await addDoc(collection(db, 'redemptions'), {
-          userId,
-          rewardId: reward.id,
-          rewardName: reward.name,
-          pointsUsed: reward.points,
-          redeemedAt: Timestamp.now()
-        });
-        
-        // Update local state
-        setLoyaltyPoints(newPoints);
-        
-        toast({
-          title: "Reward Redeemed!",
-          description: `You have redeemed: ${reward.name}. It will be applied to your next order.`,
-        });
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where("uid", "==", userId));
+        const querySnapshot = await getDocs(q);
+
+        if (!querySnapshot.empty) {
+          const userDoc = querySnapshot.docs[0];
+          const userRef = doc(db, 'users', userDoc.id);
+          const newPoints = loyaltyPoints - reward.points;
+
+          await updateDoc(userRef, {
+            loyaltyPoints: newPoints
+          });
+
+          // Add redemption record
+          await addDoc(collection(db, 'redemptions'), {
+            userId,
+            rewardId: reward.id,
+            rewardName: reward.name,
+            pointsUsed: reward.points,
+            redeemedAt: Timestamp.now()
+          });
+
+          // Update local state
+          setLoyaltyPoints(newPoints);
+
+          toast({
+            title: "Reward Redeemed!",
+            description: `You have redeemed: ${reward.name}. It will be applied to your next order.`,
+          });
+        }
       } catch (error) {
         console.error("Error redeeming reward:", error);
         toast({

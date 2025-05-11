@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 
 import Index from "./pages/Index";
@@ -13,7 +13,7 @@ import Signup from "./pages/Signup";
 import Loyalty from "./pages/Loyalty";
 import Cart from "./pages/Cart";
 import OrderTracking from "./pages/OrderTracking";
-import UserOrders from "./pages/UserOrders"; // New page for user orders
+import UserOrders from "./pages/UserOrders"; 
 import AboutUs from "./pages/AboutUs";
 import Contact from "./pages/Contact";
 import NotFound from "./pages/NotFound";
@@ -45,7 +45,7 @@ const App = () => (
             <Route path="/about" element={<AboutUs />} />
             <Route path="/contact" element={<Contact />} />
             
-            {/* Admin Routes */}
+            {/* Admin Routes - protected by AdminGuard in AdminLayout */}
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/products" element={<AdminProducts />} />
             <Route path="/admin/offers" element={<AdminOffers />} />

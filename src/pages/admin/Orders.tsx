@@ -1,645 +1,310 @@
 
 import { useState, useEffect } from 'react';
-import AdminLayout from '@/components/admin/AdminLayout';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { getOrders, updateOrderStatus, deleteOrder, removeOrderFromCustomer } from "@/services/orderService";
+import AdminLayout from "@/components/admin/AdminLayout";
 import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardHeader, 
-  CardTitle 
-} from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from '@/components/ui/table';
+  Loader2,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Truck,
+  Package,
+  AlertTriangle,
+  Trash
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog';
-import { 
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger 
-} from '@/components/ui/dropdown-menu';
+} from "@/components/ui/dialog";
+import { toast } from "sonner";
+import { Order } from "@/types";
+import { useAuth } from '@/contexts/AuthContext';
 import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs';
-import { 
-  Truck, 
-  MoreVertical, 
-  Search, 
-  Calendar, 
-  User,
-  MapPin,
-  Clock,
-  CreditCard,
-  Check,
-  AlertCircle
-} from 'lucide-react';
-import { Separator } from '@/components/ui/separator';
-import { db } from "@/firebase/firebase";
-import { collection, getDocs, doc, updateDoc, query, where, DocumentData } from "firebase/firestore";
-import { useToast } from '@/components/ui/use-toast';
-
-// Define the order interface
-interface Order {
-  id: string;
-  customer: string;
-  email: string;
-  date: string;
-  items: {
-    id: string;
-    name: string;
-    price: number;
-    quantity: number;
-    total: number;
-  }[];
-  total: number;
-  status: string;
-  paymentStatus: string;
-  paymentMethod: string;
-  location: string;
-  loyaltyPoints: number;
-  trackingSteps: {
-    title: string;
-    description: string;
-    time: string;
-    completed: boolean;
-  }[];
-}
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const AdminOrders = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [currentTab, setCurrentTab] = useState('all');
-  const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [selectedStatus, setSelectedStatus] = useState<string>('');
-  const { toast } = useToast();
-  
-  // Fetch orders from Firebase on component mount
-  useEffect(() => {
-    const fetchOrders = async () => {
-      try {
-        const ordersCollection = collection(db, "orders");
-        const ordersSnapshot = await getDocs(ordersCollection);
-        const ordersList: Order[] = [];
-        
-        ordersSnapshot.forEach((doc) => {
-          const data = doc.data() as Omit<Order, 'id'>;
-          ordersList.push({ id: doc.id, ...data });
-        });
-        
-        setOrders(ordersList);
-      } catch (error) {
-        console.error("Error fetching orders:", error);
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Failed to fetch orders. Please try again."
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  const { isAdmin } = useAuth();
+  const queryClient = useQueryClient();
+  const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
-    fetchOrders();
-  }, [toast]);
-
-  // Filter orders based on search term and selected tab
-  const filteredOrders = orders.filter(order => {
-    const matchesSearch = 
-      order.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      order.customer.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    if (currentTab === 'all') return matchesSearch;
-    return matchesSearch && order.status.toLowerCase() === currentTab.toLowerCase();
+  const { data: orders = [], isLoading, isError } = useQuery({
+    queryKey: ['admin-orders'],
+    queryFn: getOrders,
+    enabled: isAdmin
   });
 
-  // Update order status in Firebase
-  const updateOrderStatus = async (orderId: string, newStatus: string) => {
-    if (!newStatus) return;
-    
-    try {
-      const orderRef = doc(db, "orders", orderId);
-      await updateDoc(orderRef, {
-        status: newStatus,
-        // Update tracking steps based on the new status
-        trackingSteps: orders.find(o => o.id === orderId)?.trackingSteps.map(step => {
-          // Mark all steps as completed up to the current status step
-          const statusSteps = {
-            "Pending": ["Order Placed"],
-            "Processing": ["Order Placed", "Payment Confirmed", "Preparing"],
-            "Out for Delivery": ["Order Placed", "Payment Confirmed", "Preparing", "Out for Delivery"],
-            "Delivered": ["Order Placed", "Payment Confirmed", "Preparing", "Out for Delivery", "Delivered"],
-          };
-          
-          const relevantSteps = statusSteps[newStatus as keyof typeof statusSteps] || [];
-          return {
-            ...step,
-            completed: relevantSteps.includes(step.title)
-          };
-        })
-      });
-      
-      // Update local state
-      setOrders(prev => prev.map(order => {
-        if (order.id === orderId) {
-          return {
-            ...order,
-            status: newStatus,
-            trackingSteps: order.trackingSteps.map(step => {
-              const statusSteps = {
-                "Pending": ["Order Placed"],
-                "Processing": ["Order Placed", "Payment Confirmed", "Preparing"],
-                "Out for Delivery": ["Order Placed", "Payment Confirmed", "Preparing", "Out for Delivery"],
-                "Delivered": ["Order Placed", "Payment Confirmed", "Preparing", "Out for Delivery", "Delivered"],
-              };
-              
-              const relevantSteps = statusSteps[newStatus as keyof typeof statusSteps] || [];
-              return {
-                ...step,
-                completed: relevantSteps.includes(step.title)
-              };
-            })
-          };
-        }
-        return order;
-      }));
-      
-      toast({
-        title: "Status Updated",
-        description: `Order #${orderId} status updated to ${newStatus}`,
-      });
-      
-    } catch (error) {
-      console.error("Error updating order status:", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to update order status. Please try again."
-      });
+  const updateStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string, status: Order['status'] }) => 
+      updateOrderStatus(id, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
+      toast.success("Order status updated");
+    },
+    onError: (error) => {
+      toast.error(`Error updating order: ${error}`);
+    }
+  });
+
+  const deleteOrderMutation = useMutation({
+    mutationFn: async (order: Order) => {
+      await deleteOrder(order.id);
+      if (order.email) {
+        await removeOrderFromCustomer(order.id, order.email);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
+      toast.success("Order successfully deleted");
+      setIsDeleteDialogOpen(false);
+    },
+    onError: (error) => {
+      toast.error(`Error deleting order: ${error}`);
+    }
+  });
+
+  const handleStatusChange = (orderId: string, status: string) => {
+    updateStatusMutation.mutate({ id: orderId, status: status as Order['status'] });
+  };
+
+  const handleDeleteOrder = (order: Order) => {
+    setOrderToDelete(order);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteOrder = () => {
+    if (orderToDelete) {
+      deleteOrderMutation.mutate(orderToDelete);
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusColor = (status: string) => {
     switch (status) {
       case 'Delivered':
-      case 'Completed':
-        return <Badge className="bg-green-100 text-green-800 hover:bg-green-200">{status}</Badge>;
+        return 'bg-green-100 text-green-800';
       case 'Processing':
-        return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-200">{status}</Badge>;
-      case 'Pending':
-        return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200">{status}</Badge>;
+        return 'bg-blue-100 text-blue-800';
       case 'Out for Delivery':
-        return <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-200">{status}</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
-
-  const getPaymentStatusBadge = (status: string) => {
-    switch (status) {
-      case 'Paid':
-        return <Badge className="bg-green-100 text-green-800 hover:bg-green-200">{status}</Badge>;
+        return 'bg-yellow-100 text-yellow-800';
       case 'Pending':
-        return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200">{status}</Badge>;
+        return 'bg-orange-100 text-orange-800';
+      case 'Cancelled':
+        return 'bg-red-100 text-red-800';
       default:
-        return <Badge variant="outline">{status}</Badge>;
+        return 'bg-gray-100 text-gray-800';
     }
   };
 
-  // Find the selected order details
-  const orderDetail = selectedOrder 
-    ? orders.find(order => order.id === selectedOrder) 
-    : null;
+  const getPaymentStatusColor = (status: string) => {
+    return status === 'Paid' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800';
+  };
+
+  if (isLoading) {
+    return (
+      <AdminLayout title="Orders">
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-coffee-dark" />
+          <span className="ml-2">Loading orders...</span>
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  if (isError) {
+    return (
+      <AdminLayout title="Orders">
+        <div className="flex flex-col items-center justify-center h-64">
+          <AlertTriangle className="h-12 w-12 text-red-500 mb-4" />
+          <h3 className="text-xl font-semibold mb-2">Error Loading Orders</h3>
+          <p className="text-gray-500">There was a problem fetching order data.</p>
+        </div>
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout title="Orders">
-      <div className="grid gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Customer Orders</CardTitle>
-            <CardDescription>
-              View and manage all customer orders
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="all" className="mb-6" onValueChange={setCurrentTab}>
-              <div className="flex justify-between items-center">
-                <TabsList>
-                  <TabsTrigger value="all">All Orders</TabsTrigger>
-                  <TabsTrigger value="pending">Pending</TabsTrigger>
-                  <TabsTrigger value="processing">Processing</TabsTrigger>
-                  <TabsTrigger value="delivered">Delivered</TabsTrigger>
-                </TabsList>
-                <div className="relative w-64">
-                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search orders..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-8"
-                  />
-                </div>
-              </div>
-              
-              <TabsContent value="all" className="mt-4">
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Order ID</TableHead>
-                        <TableHead>Customer</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Total</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Payment</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {isLoading ? (
-                        <TableRow>
-                          <TableCell colSpan={7} className="text-center py-8">
-                            Loading orders...
-                          </TableCell>
-                        </TableRow>
-                      ) : filteredOrders.length > 0 ? (
-                        filteredOrders.map((order) => (
-                          <TableRow key={order.id}>
-                            <TableCell className="font-medium">#{order.id}</TableCell>
-                            <TableCell>{order.customer}</TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-1">
-                                <Calendar className="h-3 w-3 text-muted-foreground" />
-                                <span>{new Date(order.date).toLocaleDateString()}</span>
-                              </div>
-                            </TableCell>
-                            <TableCell>KES {order.total.toLocaleString()}</TableCell>
-                            <TableCell>{getStatusBadge(order.status)}</TableCell>
-                            <TableCell>{getPaymentStatusBadge(order.paymentStatus)}</TableCell>
-                            <TableCell className="text-right">
-                              <div className="flex justify-end">
-                                <Dialog>
-                                  <DialogTrigger asChild>
-                                    <Button 
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => setSelectedOrder(order.id)}
-                                    >
-                                      View
-                                    </Button>
-                                  </DialogTrigger>
-                                  <DialogContent className="max-w-3xl">
-                                    <DialogHeader>
-                                      <DialogTitle>Order #{orderDetail?.id}</DialogTitle>
-                                      <DialogDescription>
-                                        Order placed on {orderDetail ? new Date(orderDetail.date).toLocaleString() : ''}
-                                      </DialogDescription>
-                                    </DialogHeader>
-                                    
-                                    {orderDetail && (
-                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div>
-                                          <h3 className="font-medium text-lg mb-2">Order Details</h3>
-                                          
-                                          <div className="grid gap-4">
-                                            <div className="flex items-center gap-2">
-                                              <User className="h-4 w-4 text-muted-foreground" />
-                                              <div>
-                                                <p className="font-medium">{orderDetail.customer}</p>
-                                                <p className="text-sm text-muted-foreground">{orderDetail.email}</p>
-                                              </div>
-                                            </div>
-                                            
-                                            <div className="flex items-center gap-2">
-                                              <MapPin className="h-4 w-4 text-muted-foreground" />
-                                              <p>{orderDetail.location}</p>
-                                            </div>
-                                            
-                                            <div className="flex items-center gap-2">
-                                              <Clock className="h-4 w-4 text-muted-foreground" />
-                                              <p>{new Date(orderDetail.date).toLocaleString()}</p>
-                                            </div>
-                                            
-                                            <div className="flex items-center gap-2">
-                                              <CreditCard className="h-4 w-4 text-muted-foreground" />
-                                              <div>
-                                                <p className="font-medium">{orderDetail.paymentMethod}</p>
-                                                <p className="text-sm text-muted-foreground">
-                                                  {getPaymentStatusBadge(orderDetail.paymentStatus || '')}
-                                                </p>
-                                              </div>
-                                            </div>
-                                          </div>
-                                          
-                                          <h3 className="font-medium text-lg mt-6 mb-2">Order Items</h3>
-                                          <div className="border rounded-md">
-                                            <Table>
-                                              <TableHeader>
-                                                <TableRow>
-                                                  <TableHead>Item</TableHead>
-                                                  <TableHead className="text-right">Qty</TableHead>
-                                                  <TableHead className="text-right">Price</TableHead>
-                                                </TableRow>
-                                              </TableHeader>
-                                              <TableBody>
-                                                {orderDetail.items.map((item) => (
-                                                  <TableRow key={item.id}>
-                                                    <TableCell>{item.name}</TableCell>
-                                                    <TableCell className="text-right">{item.quantity}</TableCell>
-                                                    <TableCell className="text-right">KES {item.total.toLocaleString()}</TableCell>
-                                                  </TableRow>
-                                                ))}
-                                                <TableRow>
-                                                  <TableCell colSpan={2} className="font-bold">Total</TableCell>
-                                                  <TableCell className="text-right font-bold">KES {orderDetail.total.toLocaleString()}</TableCell>
-                                                </TableRow>
-                                              </TableBody>
-                                            </Table>
-                                          </div>
-                                        </div>
-                                        
-                                        <div className="border-t md:border-t-0 md:border-l pt-4 md:pt-0 md:pl-6">
-                                          <h3 className="font-medium text-lg mb-4">Order Tracking</h3>
-                                          
-                                          <div className="space-y-6">
-                                            {orderDetail.trackingSteps.map((step, idx) => (
-                                              <div key={idx} className="relative flex gap-4">
-                                                {idx !== orderDetail.trackingSteps.length - 1 && (
-                                                  <div className="absolute left-[14px] top-[24px] h-full w-0.5 bg-gray-200"></div>
-                                                )}
-                                                
-                                                <div className={`relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border ${
-                                                  step.completed ? 'bg-green-100 border-green-600 text-green-600' : 'bg-gray-100 border-gray-400 text-gray-400'
-                                                }`}>
-                                                  {step.completed ? (
-                                                    <Check className="h-4 w-4" />
-                                                  ) : (
-                                                    <AlertCircle className="h-4 w-4" />
-                                                  )}
-                                                </div>
-                                                
-                                                <div className="pb-6">
-                                                  <p className="font-medium">{step.title}</p>
-                                                  <p className="text-sm text-muted-foreground">{step.description}</p>
-                                                  <p className="text-xs text-muted-foreground mt-1">{step.time}</p>
-                                                </div>
-                                              </div>
-                                            ))}
-                                          </div>
-                                          
-                                          <div className="mt-6 border-t pt-4">
-                                            <h4 className="font-medium mb-2">Update Order Status</h4>
-                                            <div className="flex gap-2">
-                                              <select 
-                                                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium"
-                                                value={selectedStatus}
-                                                onChange={(e) => setSelectedStatus(e.target.value)}
-                                              >
-                                                <option value="">Select status</option>
-                                                <option value="Pending">Pending</option>
-                                                <option value="Processing">Processing</option>
-                                                <option value="Out for Delivery">Out for Delivery</option>
-                                                <option value="Delivered">Delivered</option>
-                                                <option value="Cancelled">Cancelled</option>
-                                              </select>
-                                              <Button 
-                                                onClick={() => {
-                                                  if (selectedStatus) {
-                                                    updateOrderStatus(orderDetail.id, selectedStatus);
-                                                  }
-                                                }}
-                                                disabled={!selectedStatus}
-                                              >
-                                                Update
-                                              </Button>
-                                            </div>
-                                          </div>
-                                          
-                                          <div className="mt-6 bg-yellow-50 p-3 rounded-md border border-yellow-100">
-                                            <h4 className="font-medium text-yellow-800 flex items-center gap-1">
-                                              <AlertCircle className="h-4 w-4" />
-                                              Loyalty Points
-                                            </h4>
-                                            <p className="text-sm text-yellow-800 mt-1">
-                                              This order earned the customer {orderDetail.loyaltyPoints} points (1 point per KES 115 spent).
-                                            </p>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    )}
-                                  </DialogContent>
-                                </Dialog>
-                                
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="ml-2">
-                                      <MoreVertical className="h-4 w-4" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                    <DropdownMenuItem onClick={() => updateOrderStatus(order.id, "Processing")}>
-                                      Mark as Processing
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => updateOrderStatus(order.id, "Out for Delivery")}>
-                                      Mark as Out for Delivery
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => updateOrderStatus(order.id, "Delivered")}>
-                                      Mark as Delivered
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem 
-                                      className="text-red-600"
-                                      onClick={() => updateOrderStatus(order.id, "Cancelled")}
-                                    >
-                                      Cancel Order
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      ) : (
-                        <TableRow>
-                          <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                            No orders found {searchTerm ? `for "${searchTerm}"` : ''}
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </TabsContent>
-              
-              <TabsContent value="pending" className="mt-4">
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Order ID</TableHead>
-                        <TableHead>Customer</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Total</TableHead>
-                        <TableHead>Payment</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredOrders.length > 0 ? (
-                        filteredOrders.map((order) => (
-                          <TableRow key={order.id}>
-                            <TableCell className="font-medium">#{order.id}</TableCell>
-                            <TableCell>{order.customer}</TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-1">
-                                <Calendar className="h-3 w-3 text-muted-foreground" />
-                                <span>{new Date(order.date).toLocaleDateString()}</span>
-                              </div>
-                            </TableCell>
-                            <TableCell>KES {order.total.toLocaleString()}</TableCell>
-                            <TableCell>{getPaymentStatusBadge(order.paymentStatus)}</TableCell>
-                            <TableCell className="text-right">
-                              <Button 
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setSelectedOrder(order.id)}
-                              >
-                                View
+      <div className="bg-white shadow-sm rounded-lg">
+        <div className="p-6 border-b">
+          <h2 className="text-xl font-semibold">Manage Orders</h2>
+          <p className="text-gray-500">View and update customer orders</p>
+        </div>
+        
+        <div className="p-6">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Order ID</TableHead>
+                <TableHead>Customer</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Items</TableHead>
+                <TableHead>Total</TableHead>
+                <TableHead>Payment</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {orders.length > 0 ? orders.map(order => (
+                <TableRow key={order.id}>
+                  <TableCell className="font-medium">#{order.id.slice(0, 4)}</TableCell>
+                  <TableCell>{order.customer}</TableCell>
+                  <TableCell>{new Date(order.date).toLocaleDateString()}</TableCell>
+                  <TableCell>{order.items.reduce((sum, item) => sum + item.quantity, 0)} items</TableCell>
+                  <TableCell>KES {order.total.toLocaleString()}</TableCell>
+                  <TableCell>
+                    <Badge className={getPaymentStatusColor(order.paymentStatus)}>
+                      {order.paymentStatus}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Select
+                      defaultValue={order.status}
+                      onValueChange={(value) => handleStatusChange(order.id, value)}
+                    >
+                      <SelectTrigger className="w-[140px]">
+                        <SelectValue placeholder="Status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Pending">Pending</SelectItem>
+                        <SelectItem value="Processing">Processing</SelectItem>
+                        <SelectItem value="Out for Delivery">Out for Delivery</SelectItem>
+                        <SelectItem value="Delivered">Delivered</SelectItem>
+                        <SelectItem value="Cancelled">Cancelled</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                  <TableCell>
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="sm">View</Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-2xl">
+                        <DialogHeader>
+                          <DialogTitle>Order Details - #{order.id.slice(0, 4)}</DialogTitle>
+                          <DialogDescription>
+                            Placed on {new Date(order.date).toLocaleString()}
+                          </DialogDescription>
+                        </DialogHeader>
+                        
+                        <div className="space-y-4">
+                          <div>
+                            <h3 className="font-medium">Customer Information</h3>
+                            <p>Name: {order.customer}</p>
+                            <p>Email: {order.email}</p>
+                            <p>Delivery Location: {order.location}</p>
+                          </div>
+                          
+                          <div>
+                            <h3 className="font-medium">Order Items</h3>
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Item</TableHead>
+                                  <TableHead className="text-right">Quantity</TableHead>
+                                  <TableHead className="text-right">Price</TableHead>
+                                  <TableHead className="text-right">Total</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {order.items.map(item => (
+                                  <TableRow key={item.id}>
+                                    <TableCell>{item.name}</TableCell>
+                                    <TableCell className="text-right">{item.quantity}</TableCell>
+                                    <TableCell className="text-right">KES {item.price.toLocaleString()}</TableCell>
+                                    <TableCell className="text-right">KES {item.total.toLocaleString()}</TableCell>
+                                  </TableRow>
+                                ))}
+                                <TableRow>
+                                  <TableCell colSpan={3} className="text-right font-bold">Total:</TableCell>
+                                  <TableCell className="text-right font-bold">KES {order.total.toLocaleString()}</TableCell>
+                                </TableRow>
+                              </TableBody>
+                            </Table>
+                          </div>
+                        </div>
+                        
+                        <DialogFooter>
+                          <AlertDialog open={isDeleteDialogOpen && orderToDelete?.id === order.id} onOpenChange={setIsDeleteDialogOpen}>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="destructive" onClick={() => handleDeleteOrder(order)}>
+                                <Trash className="h-4 w-4 mr-2" />
+                                Delete Order
                               </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      ) : (
-                        <TableRow>
-                          <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                            No pending orders found
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </TabsContent>
-              
-              <TabsContent value="processing" className="mt-4">
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Order ID</TableHead>
-                        <TableHead>Customer</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Total</TableHead>
-                        <TableHead>Payment</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredOrders.length > 0 ? (
-                        filteredOrders.map((order) => (
-                          <TableRow key={order.id}>
-                            <TableCell className="font-medium">#{order.id}</TableCell>
-                            <TableCell>{order.customer}</TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-1">
-                                <Calendar className="h-3 w-3 text-muted-foreground" />
-                                <span>{new Date(order.date).toLocaleDateString()}</span>
-                              </div>
-                            </TableCell>
-                            <TableCell>KES {order.total.toLocaleString()}</TableCell>
-                            <TableCell>{getPaymentStatusBadge(order.paymentStatus)}</TableCell>
-                            <TableCell className="text-right">
-                              <Button 
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setSelectedOrder(order.id)}
-                              >
-                                View
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      ) : (
-                        <TableRow>
-                          <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                            No processing orders found
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </TabsContent>
-              
-              <TabsContent value="delivered" className="mt-4">
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Order ID</TableHead>
-                        <TableHead>Customer</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Total</TableHead>
-                        <TableHead>Payment</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredOrders.length > 0 ? (
-                        filteredOrders.map((order) => (
-                          <TableRow key={order.id}>
-                            <TableCell className="font-medium">#{order.id}</TableCell>
-                            <TableCell>{order.customer}</TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-1">
-                                <Calendar className="h-3 w-3 text-muted-foreground" />
-                                <span>{new Date(order.date).toLocaleDateString()}</span>
-                              </div>
-                            </TableCell>
-                            <TableCell>KES {order.total.toLocaleString()}</TableCell>
-                            <TableCell>{getPaymentStatusBadge(order.paymentStatus)}</TableCell>
-                            <TableCell className="text-right">
-                              <Button 
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setSelectedOrder(order.id)}
-                              >
-                                View
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      ) : (
-                        <TableRow>
-                          <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                            No delivered orders found
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This will permanently delete the order and remove it from our database. 
+                                  This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={confirmDeleteOrder} className="bg-red-600 hover:bg-red-700">
+                                  {deleteOrderMutation.isPending ? (
+                                    <>
+                                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                      Deleting...
+                                    </>
+                                  ) : "Delete"}
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  </TableCell>
+                </TableRow>
+              )) : (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-6">
+                    <div className="flex flex-col items-center justify-center">
+                      <Package className="h-12 w-12 text-gray-400 mb-4" />
+                      <h3 className="text-lg font-medium mb-1">No Orders Found</h3>
+                      <p className="text-gray-500">There are no orders in the system yet.</p>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
     </AdminLayout>
   );

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { Button } from '@/components/ui/button';
@@ -27,103 +26,96 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { 
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger 
-} from '@/components/ui/dropdown-menu';
 import { useToast } from '@/components/ui/use-toast';
-import { Search, MoreVertical, User, Calendar, Mail, Phone, MapPin, Gift, Loader2 } from 'lucide-react';
-import { Customer } from '@/types';
-import { getCustomers, getCustomerById, updateCustomerLoyaltyPoints, deleteCustomer } from '@/services/customerService';
+import { Search, User, Calendar, Mail, Phone, MapPin, Gift, Loader2 } from 'lucide-react';
+import { User as UserType } from '@/services/userService';
+import { getAllUsers, updateUserLoyaltyPoints, deleteUser } from '@/services/userService';
 import { getOrdersByCustomer } from '@/services/orderService';
 
 const AdminCustomers = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [users, setUsers] = useState<UserType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [customerOrders, setCustomerOrders] = useState<any[]>([]);
-  const [showCustomerDialog, setShowCustomerDialog] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<UserType | null>(null);
+  const [userOrders, setUserOrders] = useState<any[]>([]);
+  const [showUserDialog, setShowUserDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [loyaltyPoints, setLoyaltyPoints] = useState('');
   const { toast } = useToast();
 
-  // Fetch customers from Firestore
+  // Fetch users from Firestore
   useEffect(() => {
-    const fetchCustomers = async () => {
+    const fetchUsers = async () => {
       try {
         setIsLoading(true);
-        const customersData = await getCustomers();
-        setCustomers(customersData);
+        const usersData = await getAllUsers();
+        setUsers(usersData);
       } catch (error) {
-        console.error('Error fetching customers:', error);
+        console.error('Error fetching users:', error);
         toast({
           variant: "destructive",
           title: "Error",
-          description: "Failed to load customers. Please try again."
+          description: "Failed to load users. Please try again."
         });
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchCustomers();
+    fetchUsers();
   }, [toast]);
 
   useEffect(() => {
-    const fetchCustomerOrders = async () => {
-      if (selectedCustomer && showCustomerDialog) {
+    const fetchUserOrders = async () => {
+      if (selectedUser && showUserDialog) {
         try {
-          const orders = await getOrdersByCustomer(selectedCustomer.email);
-          setCustomerOrders(orders);
+          const orders = await getOrdersByCustomer(selectedUser.email);
+          setUserOrders(orders);
         } catch (error) {
-          console.error('Error fetching customer orders:', error);
+          console.error('Error fetching user orders:', error);
           toast({
             variant: "destructive",
             title: "Error",
-            description: "Failed to load customer orders."
+            description: "Failed to load user orders."
           });
         }
       }
     };
 
-    fetchCustomerOrders();
-  }, [selectedCustomer, showCustomerDialog, toast]);
+    fetchUserOrders();
+  }, [selectedUser, showUserDialog, toast]);
   
-  const filteredCustomers = customers.filter(customer => 
-    customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    customer.email.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredUsers = users.filter(user => 
+    (user.fullName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (user.email || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleAddLoyaltyPoints = async () => {
-    if (!selectedCustomer || !loyaltyPoints) return;
+    if (!selectedUser || !loyaltyPoints) return;
     
     try {
       setIsSubmitting(true);
-      
       const points = parseInt(loyaltyPoints);
-      await updateCustomerLoyaltyPoints(selectedCustomer.id, points);
-      
+      await updateUserLoyaltyPoints(selectedUser.uid, points);
+
       // Update local state
-      setCustomers(customers.map(customer => 
-        customer.id === selectedCustomer.id 
-          ? { ...customer, loyaltyPoints: customer.loyaltyPoints + points } 
-          : customer
+      setUsers(users.map(user => 
+        user.uid === selectedUser.uid 
+          ? { ...user, loyaltyPoints: (user.loyaltyPoints || 0) + points } 
+          : user
       ));
       
-      setSelectedCustomer({
-        ...selectedCustomer,
-        loyaltyPoints: selectedCustomer.loyaltyPoints + points
+      setSelectedUser({
+        ...selectedUser,
+        loyaltyPoints: (selectedUser.loyaltyPoints || 0) + points
       });
       
       setLoyaltyPoints('');
       
       toast({
         title: "Points Added",
-        description: `${points} loyalty points added to ${selectedCustomer.name}'s account.`
+        description: `${points} loyalty points added to ${selectedUser.fullName}'s account.`
       });
       
     } catch (error) {
@@ -138,32 +130,31 @@ const AdminCustomers = () => {
     }
   };
 
-  const handleDeleteCustomer = async () => {
-    if (!selectedCustomer) return;
+  const handleDeleteUser = async () => {
+    if (!selectedUser) return;
     
     try {
       setIsSubmitting(true);
-      
-      await deleteCustomer(selectedCustomer.id);
-      
+      await deleteUser(selectedUser.uid);
+
       // Update local state
-      setCustomers(customers.filter(c => c.id !== selectedCustomer.id));
+      setUsers(users.filter(u => u.uid !== selectedUser.uid));
       
       setShowDeleteDialog(false);
-      setShowCustomerDialog(false);
-      setSelectedCustomer(null);
+      setShowUserDialog(false);
+      setSelectedUser(null);
       
       toast({
-        title: "Customer Deleted",
-        description: "The customer has been deleted successfully."
+        title: "User Deleted",
+        description: "The user has been deleted successfully."
       });
       
     } catch (error) {
-      console.error("Error deleting customer:", error);
+      console.error("Error deleting user:", error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to delete customer. Please try again."
+        description: "Failed to delete user. Please try again."
       });
     } finally {
       setIsSubmitting(false);
@@ -180,12 +171,12 @@ const AdminCustomers = () => {
   };
 
   return (
-    <AdminLayout title="Customers">
+    <AdminLayout title="Users">
       <Card>
         <CardHeader>
-          <CardTitle>Customer Management</CardTitle>
+          <CardTitle>User Management</CardTitle>
           <CardDescription>
-            View and manage your customer accounts and their loyalty points
+            View and manage your user accounts and their loyalty points
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -193,7 +184,7 @@ const AdminCustomers = () => {
             <div className="relative w-full md:w-80">
               <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search customers..."
+                placeholder="Search users..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-8"
@@ -205,7 +196,7 @@ const AdminCustomers = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Customer</TableHead>
+                  <TableHead>User</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Registered On</TableHead>
                   <TableHead>Loyalty Points</TableHead>
@@ -219,46 +210,46 @@ const AdminCustomers = () => {
                     <TableCell colSpan={6} className="text-center py-8">
                       <div className="flex justify-center items-center">
                         <Loader2 className="h-6 w-6 animate-spin mr-2" />
-                        Loading customers...
+                        Loading users...
                       </div>
                     </TableCell>
                   </TableRow>
-                ) : filteredCustomers.length > 0 ? (
-                  filteredCustomers.map((customer) => (
-                    <TableRow key={customer.id}>
+                ) : filteredUsers.length > 0 ? (
+                  filteredUsers.map((user) => (
+                    <TableRow key={user.uid}>
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <div className="h-8 w-8 rounded-full bg-gray-100 p-1 flex items-center justify-center">
                             <User className="h-5 w-5 text-gray-500" />
                           </div>
-                          <span className="font-medium">{customer.name}</span>
+                          <span className="font-medium">{user.fullName}</span>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
                           <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-                          <span>{customer.email}</span>
+                          <span>{user.email}</span>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
                           <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                          <span>{formatDate(customer.registeredOn)}</span>
+                          <span>{formatDate(user.createdAt)}</span>
                         </div>
                       </TableCell>
                       <TableCell>
                         <Badge className="bg-amber-100 text-amber-800">
-                          {customer.loyaltyPoints} points
+                          {user.loyaltyPoints || 0} points
                         </Badge>
                       </TableCell>
-                      <TableCell>{customer.orders?.length || 0}</TableCell>
+                      <TableCell>{user.orders?.length || 0}</TableCell>
                       <TableCell className="text-right">
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => {
-                            setSelectedCustomer(customer);
-                            setShowCustomerDialog(true);
+                            setSelectedUser(user);
+                            setShowUserDialog(true);
                           }}
                         >
                           View Details
@@ -270,8 +261,8 @@ const AdminCustomers = () => {
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       {searchTerm ? 
-                        `No customers found for "${searchTerm}"` : 
-                        "No customers available."
+                        `No users found for "${searchTerm}"` : 
+                        "No users available."
                       }
                     </TableCell>
                   </TableRow>
@@ -282,20 +273,20 @@ const AdminCustomers = () => {
         </CardContent>
       </Card>
 
-      {/* Customer Details Dialog */}
-      <Dialog open={showCustomerDialog} onOpenChange={setShowCustomerDialog}>
+      {/* User Details Dialog */}
+      <Dialog open={showUserDialog} onOpenChange={setShowUserDialog}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Customer Details</DialogTitle>
+            <DialogTitle>User Details</DialogTitle>
             <DialogDescription>
-              View and manage customer information
+              View and manage user information
             </DialogDescription>
           </DialogHeader>
           
-          {selectedCustomer && (
+          {selectedUser && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="md:col-span-1 border-b md:border-b-0 md:border-r pb-4 md:pb-0 md:pr-6">
-                <h3 className="font-medium text-lg mb-4">Customer Information</h3>
+                <h3 className="font-medium text-lg mb-4">User Information</h3>
                 
                 <div className="space-y-4">
                   <div>
@@ -303,7 +294,7 @@ const AdminCustomers = () => {
                       <User className="h-4 w-4 text-muted-foreground" />
                       <span className="font-medium">Name</span>
                     </div>
-                    <p>{selectedCustomer.name}</p>
+                    <p>{selectedUser.fullName}</p>
                   </div>
                   
                   <div>
@@ -311,26 +302,26 @@ const AdminCustomers = () => {
                       <Mail className="h-4 w-4 text-muted-foreground" />
                       <span className="font-medium">Email</span>
                     </div>
-                    <p>{selectedCustomer.email}</p>
+                    <p>{selectedUser.email}</p>
                   </div>
                   
-                  {selectedCustomer.phone && (
+                  {selectedUser.phone && (
                     <div>
                       <div className="flex items-center gap-2 mb-1">
                         <Phone className="h-4 w-4 text-muted-foreground" />
                         <span className="font-medium">Phone</span>
                       </div>
-                      <p>{selectedCustomer.phone}</p>
+                      <p>{selectedUser.phone}</p>
                     </div>
                   )}
                   
-                  {selectedCustomer.address && (
+                  {selectedUser.address && (
                     <div>
                       <div className="flex items-center gap-2 mb-1">
                         <MapPin className="h-4 w-4 text-muted-foreground" />
                         <span className="font-medium">Address</span>
                       </div>
-                      <p>{selectedCustomer.address}</p>
+                      <p>{selectedUser.address}</p>
                     </div>
                   )}
                   
@@ -339,7 +330,7 @@ const AdminCustomers = () => {
                       <Calendar className="h-4 w-4 text-muted-foreground" />
                       <span className="font-medium">Registered On</span>
                     </div>
-                    <p>{formatDate(selectedCustomer.registeredOn)}</p>
+                    <p>{formatDate(selectedUser.createdAt)}</p>
                   </div>
                   
                   <div>
@@ -348,7 +339,7 @@ const AdminCustomers = () => {
                       <span className="font-medium">Loyalty Points</span>
                     </div>
                     <Badge className="bg-amber-100 text-amber-800 text-sm">
-                      {selectedCustomer.loyaltyPoints} points
+                      {selectedUser.loyaltyPoints || 0} points
                     </Badge>
                   </div>
                 </div>
@@ -376,13 +367,13 @@ const AdminCustomers = () => {
                 </div>
                 
                 <div className="mt-6 pt-6 border-t">
-                  <h4 className="font-medium mb-2">Customer Actions</h4>
+                  <h4 className="font-medium mb-2">User Actions</h4>
                   <div className="flex gap-2">
                     <Button 
                       variant="destructive"
                       onClick={() => setShowDeleteDialog(true)}
                     >
-                      Delete Customer
+                      Delete User
                     </Button>
                   </div>
                 </div>
@@ -391,7 +382,7 @@ const AdminCustomers = () => {
               <div className="md:col-span-2 md:pl-6">
                 <h3 className="font-medium text-lg mb-4">Order History</h3>
                 
-                {customerOrders.length > 0 ? (
+                {userOrders.length > 0 ? (
                   <div className="border rounded-md overflow-hidden">
                     <Table>
                       <TableHeader>
@@ -403,7 +394,7 @@ const AdminCustomers = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {customerOrders.map(order => (
+                        {userOrders.map(order => (
                           <TableRow key={order.id}>
                             <TableCell className="font-medium">#{order.id}</TableCell>
                             <TableCell>{formatDate(order.date)}</TableCell>
@@ -427,7 +418,7 @@ const AdminCustomers = () => {
                 ) : (
                   <div className="text-center py-8 border rounded-md">
                     <p className="text-muted-foreground">
-                      No orders found for this customer
+                      No orders found for this user
                     </p>
                   </div>
                 )}
@@ -436,17 +427,17 @@ const AdminCustomers = () => {
                   <h3 className="font-medium text-lg mb-4">Activity Summary</h3>
                   <div className="grid grid-cols-3 gap-4">
                     <div className="border p-4 rounded-md text-center">
-                      <span className="text-2xl font-bold">{customerOrders.length}</span>
+                      <span className="text-2xl font-bold">{userOrders.length}</span>
                       <p className="text-muted-foreground text-sm">Total Orders</p>
                     </div>
                     <div className="border p-4 rounded-md text-center">
                       <span className="text-2xl font-bold">
-                        {customerOrders.reduce((sum, order) => sum + order.total, 0).toLocaleString()}
+                        {userOrders.reduce((sum, order) => sum + order.total, 0).toLocaleString()}
                       </span>
                       <p className="text-muted-foreground text-sm">Total Spent (KES)</p>
                     </div>
                     <div className="border p-4 rounded-md text-center">
-                      <span className="text-2xl font-bold">{selectedCustomer.loyaltyPoints}</span>
+                      <span className="text-2xl font-bold">{selectedUser.loyaltyPoints || 0}</span>
                       <p className="text-muted-foreground text-sm">Loyalty Points</p>
                     </div>
                   </div>
@@ -463,7 +454,7 @@ const AdminCustomers = () => {
           <DialogHeader>
             <DialogTitle>Confirm Delete</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this customer? All their data including order history and loyalty points will be permanently removed. This action cannot be undone.
+              Are you sure you want to delete this user? All their data including order history and loyalty points will be permanently removed. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -472,7 +463,7 @@ const AdminCustomers = () => {
             </Button>
             <Button 
               variant="destructive" 
-              onClick={handleDeleteCustomer}
+              onClick={handleDeleteUser}
               disabled={isSubmitting}
             >
               {isSubmitting ? (
@@ -481,7 +472,7 @@ const AdminCustomers = () => {
                   Deleting...
                 </>
               ) : (
-                'Delete Customer'
+                'Delete User'
               )}
             </Button>
           </DialogFooter>

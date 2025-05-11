@@ -1,10 +1,8 @@
 import { createOrder } from './orderService';
-import { updateCustomerLoyaltyPoints, addOrderToCustomer } from './customerService';
-import { getCustomerByEmail } from './customerService';
-import { updateUserLoyaltyPoints, getUserByUid } from './userService';
+import { updateUserLoyaltyPoints, addOrderToUser, getUserByUid } from './userService';
 import { Order } from '@/types';
 import { auth, db } from '@/firebase/firebase';
-import { collection, addDoc, query, where, getDocs, doc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
+import { collection, addDoc, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 
 // Cart collection in Firestore
 const CART_COLLECTION = 'carts';
@@ -205,22 +203,13 @@ export const placeOrder = async (
       loyaltyPoints
     });
 
-    // Find customer by email and update loyalty points
-    const customer = await getCustomerByEmail(userEmail);
-    if (customer) {
-      console.log("Updating loyalty points for customer:", customer.id, "Points:", loyaltyPoints);
-      await updateCustomerLoyaltyPoints(customer.id, loyaltyPoints);
-      await addOrderToCustomer(customer.id, orderId);
-    } else {
-      console.warn("Customer not found for email:", userEmail);
-    }
-
-    // Also update user points in 'users' collection if user exists
+    // Update user points in 'users' collection if user exists
     const user = auth.currentUser;
     if (user) {
       const userRecord = await getUserByUid(user.uid);
       if (userRecord) {
         await updateUserLoyaltyPoints(userRecord.id, loyaltyPoints);
+        await addOrderToUser(userRecord.id, orderId);
       }
       // Optionally, update 'loyalty' collection if you use it
       const loyaltyRef = collection(db, 'loyalty');

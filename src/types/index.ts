@@ -62,3 +62,9 @@ export interface Coupon {
   currentUses: number;
   isActive: boolean;
 }
+
+export interface UserRole {
+  admin?: boolean;
+  customer?: boolean;
+}
+

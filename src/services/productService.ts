@@ -1,4 +1,3 @@
-
 import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, getDoc, query, where } from "firebase/firestore";
 import { db } from "@/firebase/firebase";
 import { Product } from "@/types";
@@ -10,8 +9,8 @@ export const getProducts = async (): Promise<Product[]> => {
   const productsSnapshot = await getDocs(productsCollection);
   const products: Product[] = [];
   
-  productsSnapshot.forEach((doc) => {
-    products.push({ id: doc.id, ...doc.data() } as Product);
+  productsSnapshot.forEach((productDoc) => {
+    products.push({ id: productDoc.id, ...productDoc.data() } as Product);
   });
   
   return products;
@@ -34,8 +33,8 @@ export const getProductsByCategory = async (category: string): Promise<Product[]
   const productsSnapshot = await getDocs(productQuery);
   const products: Product[] = [];
   
-  productsSnapshot.forEach((doc) => {
-    products.push({ id: doc.id, ...doc.data() } as Product);
+  productsSnapshot.forEach((productDoc) => {
+    products.push({ id: productDoc.id, ...productDoc.data() } as Product);
   });
   
   return products;

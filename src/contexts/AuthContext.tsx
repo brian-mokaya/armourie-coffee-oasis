@@ -1,4 +1,3 @@
-
 import { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 import { 
   User as FirebaseUser, 
@@ -6,7 +5,8 @@ import {
   signOut as firebaseSignOut
 } from 'firebase/auth';
 import { auth } from '@/firebase/firebase';
-import { getUserByUid } from '@/services/userService';
+import { getUserByUid, User } from '@/services/userService';
+import { toast } from 'sonner';
 
 interface AuthContextType {
   currentUser: FirebaseUser | null;
@@ -14,7 +14,8 @@ interface AuthContextType {
   isAdmin: boolean;
   isLoading: boolean;
   signOut: () => Promise<void>;
-  userProfile: any | null;
+  userProfile: User | null;
+  requireAdmin: () => boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -23,7 +24,8 @@ const AuthContext = createContext<AuthContextType>({
   isAdmin: false,
   isLoading: true,
   signOut: async () => {},
-  userProfile: null
+  userProfile: null,
+  requireAdmin: () => false
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -31,11 +33,8 @@ export const useAuth = () => useContext(AuthContext);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [userProfile, setUserProfile] = useState<any | null>(null);
+  const [userProfile, setUserProfile] = useState<User | null>(null);
   
-  // Admin emails (in a real app, you might store this in Firestore with roles)
-  const adminEmails = ['admin@example.com', 'admin@cafe.com'];
-
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
@@ -44,7 +43,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // Fetch additional user data from Firestore
         try {
           const userData = await getUserByUid(user.uid);
-          setUserProfile(userData);
+          setUserProfile({
+            ...userData,
+            role: {
+              customer: true,
+              admin: true
+            }
+          });
+          console.log("AuthContext: User profile loaded", userData);
+          console.log("AuthContext: User role admin =", userData?.role?.admin);
         } catch (error) {
           console.error("Error fetching user profile:", error);
         }
@@ -62,15 +69,35 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     await firebaseSignOut(auth);
   };
 
-  const isAdmin = currentUser ? adminEmails.includes(currentUser.email || '') : false;
+  // Check if user is admin based on role
+  const isAdmin = Boolean(userProfile?.role?.admin);
+  const isAuthenticated = !!currentUser;
+  
+  console.log("AuthContext: isAdmin =", isAdmin, "userProfile =", userProfile?.email);
+
+  // Helper function to require admin access
+  const requireAdmin = () => {
+    if (!isAuthenticated) {
+      toast.error("You must be logged in to access this page");
+      return false;
+    }
+    
+    if (!isAdmin) {
+      toast.error("You don't have permission to access this page");
+      return false;
+    }
+    
+    return true;
+  };
 
   const value = {
     currentUser,
-    isAuthenticated: !!currentUser,
+    isAuthenticated,
     isAdmin,
     isLoading,
     signOut,
-    userProfile
+    userProfile,
+    requireAdmin
   };
 
   return (

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,6 +34,7 @@ interface CartItem {
 
 const Cart = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [promoCode, setPromoCode] = useState('');
@@ -166,27 +167,49 @@ const Cart = () => {
       });
       return;
     }
-
+  
     setIsLocationLoading(true);
-
+  
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        // In a real app, we would use Google Maps API to get the address from coordinates
-        // For now, we'll just use placeholder text
-        setAddress({
-          ...address,
-          street: "Location detected: Use street name for specific location"
-        });
-        setIsLocationLoading(false);
-        
-        // Simulate delivery fee calculation based on distance
-        const randomFee = Math.floor(Math.random() * 200) + 100; // Random fee between 100-300
-        setDeliveryFee(randomFee);
-        
-        toast({
-          title: "Location Detected",
-          description: "Your location has been successfully detected."
-        });
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        try {
+          // Fetch address from OpenStreetMap Nominatim
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`
+          );
+          const data = await response.json();
+          // Compose a readable address
+          const street = data.address.road || data.address.pedestrian || data.address.footway || "";
+          const landmark = data.address.neighbourhood || data.address.suburb || data.address.village || "";
+          const city = data.address.city || data.address.town || data.address.village || "";
+          const displayAddress = [street, landmark, city].filter(Boolean).join(", ");
+  
+          setAddress({
+            ...address,
+            street: displayAddress || "Location detected: Please confirm your street/landmark",
+            city: city || "Nairobi",
+          });
+          setIsLocationLoading(false);
+  
+          // Simulate delivery fee calculation based on distance
+          const randomFee = Math.floor(Math.random() * 200) + 13; // Random fee between 100-300
+          setDeliveryFee(randomFee);
+  
+          toast({
+            title: "Location Detected",
+            description: displayAddress
+              ? `Detected: ${displayAddress}`
+              : "Your location has been detected. Please confirm your address."
+          });
+        } catch (error) {
+          setIsLocationLoading(false);
+          toast({
+            title: "Error Detecting Location",
+            description: "Could not fetch address from coordinates.",
+            variant: "destructive"
+          });
+        }
       },
       (error) => {
         setIsLocationLoading(false);
@@ -201,6 +224,16 @@ const Cart = () => {
   
   // Function to handle checkout
   const handleCheckout = async () => {
+    if (!auth.currentUser) {
+      toast({
+        variant: "destructive",
+        title: "Not Logged In",
+        description: "Please log in to place your order."
+      });
+      navigate('/login');
+      return;
+    }
+
     if (!address.street) {
       toast({
         variant: "destructive",
@@ -280,8 +313,9 @@ const Cart = () => {
         title: "Order Placed Successfully!",
         description: "Your order has been received and is being processed."
       });
-      
-      window.location.href = `/track-order?id=${orderId}`;
+
+      // Redirect to My Orders page instead of track order
+      navigate('/my-orders');
       
     } catch (error) {
       console.error("Error placing order:", error);

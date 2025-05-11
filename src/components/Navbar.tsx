@@ -90,7 +90,7 @@ const Navbar = ({ cartCount = 0 }: NavbarProps) => {
   const authNavItems = isAuthenticated
     ? [
         { label: 'My Orders', path: '/my-orders' },
-        { label: 'Track Order', path: '/track-order' }
+        // { label: 'Track Order', path: '/track-order' }
       ]
     : [];
 
