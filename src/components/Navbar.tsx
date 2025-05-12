@@ -101,17 +101,15 @@ const Navbar = ({ cartCount = 0 }: NavbarProps) => {
   const textColorClass = 'text-coffee-dark';
   const hoverColorClass = 'hover:text-coffee-medium';
 
-  // Cart button styling
-  const cartButtonClass = isScrolled 
-    ? 'text-coffee-dark border-coffee-dark hover:bg-coffee-light/20' 
-    : 'text-white border-white hover:bg-white/20';
+  // Update cart button styling to be visible regardless of scroll state
+  const cartButtonClass = "text-coffee-dark border-coffee-dark hover:bg-coffee-light/20";
 
   return (
     <nav className={navbarClasses}>
       <div className="container mx-auto px-4 flex justify-between items-center max-w-7xl">
         <Link to="/" className="flex items-center space-x-2">
-          <div className={`${isScrolled ? 'bg-coffee-dark' : 'bg-white'} rounded-full p-1`}>
-            <ShoppingBag size={24} className={isScrolled ? 'text-white' : 'text-coffee-dark'} />
+          <div className={`${isScrolled ? 'bg-coffee-dark' : 'bg-coffee-dark'} rounded-full p-1`}>
+            <ShoppingBag size={24} className="text-white" />
           </div>
           <span className={`font-bold text-xl ${textColorClass}`}>Café Armourié</span>
         </Link>
