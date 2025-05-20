@@ -4,7 +4,7 @@ import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 // If using Vite, no need to import dotenv. For Node.js, uncomment below:
-import 'dotenv/config';
+// import 'dotenv/config';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
