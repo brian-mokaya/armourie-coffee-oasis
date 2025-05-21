@@ -7,7 +7,7 @@ const Footer = () => {
       <div className="container mx-auto px-4 py-12">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div>
-            <h3 className="font-bold text-xl mb-4 text-white">Café Armourié</h3>
+            <h3 className="font-bold text-xl mb-4 text-white">Café Amourié</h3>
             <p className="text-coffee-light mb-4">Calm your mind, sip your coffee.</p>
             <div className="flex space-x-4">
               <a href="#" className="text-coffee-light hover:text-white transition-colors">
@@ -35,9 +35,9 @@ const Footer = () => {
             <h3 className="font-bold text-white mb-4">Company</h3>
             <ul className="space-y-2">
               <li><Link to="/about" className="text-coffee-light hover:text-white transition-colors">About Us</Link></li>
-              <li><Link to="/careers" className="text-coffee-light hover:text-white transition-colors">Careers</Link></li>
+              {/* <li><Link to="/careers" className="text-coffee-light hover:text-white transition-colors">Careers</Link></li> */}
               <li><Link to="/contact" className="text-coffee-light hover:text-white transition-colors">Contact Us</Link></li>
-              <li><Link to="/blog" className="text-coffee-light hover:text-white transition-colors">Blog</Link></li>
+              {/* <li><Link to="/blog" className="text-coffee-light hover:text-white transition-colors">Blog</Link></li> */}
             </ul>
           </div>
           
@@ -45,8 +45,8 @@ const Footer = () => {
             <h3 className="font-bold text-white mb-4">Services</h3>
             <ul className="space-y-2">
               <li><Link to="/menu" className="text-coffee-light hover:text-white transition-colors">Menu</Link></li>
-              <li><Link to="/catering" className="text-coffee-light hover:text-white transition-colors">Catering</Link></li>
-              <li><Link to="/events" className="text-coffee-light hover:text-white transition-colors">Private Events</Link></li>
+              {/* <li><Link to="/catering" className="text-coffee-light hover:text-white transition-colors">Catering</Link></li> */}
+              {/* <li><Link to="/events" className="text-coffee-light hover:text-white transition-colors">Private Events</Link></li> */}
               <li><Link to="/loyalty" className="text-coffee-light hover:text-white transition-colors">Loyalty Program</Link></li>
             </ul>
           </div>
@@ -58,16 +58,16 @@ const Footer = () => {
               <li className="text-coffee-light">Saturday: 8am - 8pm</li>
               <li className="text-coffee-light">Sunday: 8am - 5pm</li>
             </ul>
-            <p className="mt-4 text-coffee-light">123 Coffee Street<br />Nairobi, Kenya</p>
+            <p className="mt-4 text-coffee-light">Coffee Street<br />Nakuru, Kenya</p>
           </div>
         </div>
         
         <div className="border-t border-coffee-medium mt-12 pt-6 flex flex-col md:flex-row justify-between items-center">
-          <p className="text-coffee-light text-sm mb-4 md:mb-0">© 2023 Café Armourié. All rights reserved.</p>
+          <p className="text-coffee-light text-sm mb-4 md:mb-0">© 2025 Café Armourié. All rights reserved.</p>
           <div className="flex space-x-6">
             <Link to="/privacy" className="text-coffee-light hover:text-white text-sm transition-colors">Privacy Policy</Link>
             <Link to="/terms" className="text-coffee-light hover:text-white text-sm transition-colors">Terms of Service</Link>
-            <Link to="/cookies" className="text-coffee-light hover:text-white text-sm transition-colors">Cookie Policy</Link>
+            {/* <Link to="/cookies" className="text-coffee-light hover:text-white text-sm transition-colors">Cookie Policy</Link> */}
           </div>
         </div>
       </div>
